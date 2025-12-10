@@ -1,0 +1,14 @@
+[versions]
+junitJupiter = "6.0.1"
+ktlint = "1.8.0"
+
+[libraries]
+truth = "com.google.truth:truth:1.4.5"
+
+# Versions used in build script, libraries added here for Dependabot
+junitJupiter-api = { module = "org.junit.jupiter:junit-jupiter-api", version.ref="junitJupiter" }
+ktlint = { module = "com.pinterest.ktlint:ktlint-cli", version.ref = "ktlint" }
+
+[plugins]
+gradlePluginPublish = "com.gradle.plugin-publish:2.0.0"
+spotless = "com.diffplug.spotless:8.1.0"
