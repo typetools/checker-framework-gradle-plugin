@@ -109,11 +109,14 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
               cfOptions.skipCheckerFramework.getOrElse(false) ||
               project.properties.getOrElse("skipCheckerFramework", { false }) != false ||
               (cfOptions.excludeTests.getOrElse(false) &&
+              // MDE: This test is fragile.  It matches on "BestEstimate", for example.
+              // Maybe test for "test" or "Test" without lowercasing??
                   name.lowercase(getDefault()).contains("test"))
       ) {
         return@configureEach
       }
 
+      // MDE: What does it mean to "accidentally override"?  Can you explain or give a brief example?
       // Add argument providers so that a user cannot accidentally override the Checker
       // Framework options.
       options.compilerArgumentProviders.add(CheckerFrameworkCompilerArgumentProvider(cfOptions))

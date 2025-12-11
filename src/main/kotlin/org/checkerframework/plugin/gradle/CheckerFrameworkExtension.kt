@@ -41,6 +41,7 @@ abstract class CheckerFrameworkExtension {
   /** Disables the Checker Framework. */
   abstract val skipCheckerFramework: Property<Boolean>
 
+  // MDE: Let's get rid of this rather than carrying it on into the new plugin.
   // If you encounter "zip file too large" errors, you can set this flag to avoid
   // the standard version check which unzips a jar to look at its manifest.
   @Deprecated(message = "This option is no longer needed.") var skipVersionCheck: Boolean = false

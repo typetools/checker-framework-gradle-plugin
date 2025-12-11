@@ -1,5 +1,6 @@
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 
+// MDE: If " works as well as ` here , I would prefer ".
 plugins {
   `java-gradle-plugin`
   `kotlin-dsl`
@@ -9,6 +10,7 @@ plugins {
 
 group = "org.checkerframework"
 
+// MDE: I would start at a slightly lower number for the first release, even if 0.9.0.
 version = "1.0.0-SNAPSHOT"
 
 repositories { mavenCentral() }
