@@ -55,12 +55,12 @@ configure<CheckerFrameworkExtension> {
 
 For a list of checkers, see the [Checker Framework Manual](https://checkerframework.org/manual/#introduction).
 
-### Providing checker-specific options to the compiler
+### Providing additional options to the compiler
 
 You can set the `checkerFramework.extraJavacArgs` property in order to pass
 additional options to the compiler when running a typechecker.
 
-For example, to use a stub file:
+For example, to treat all warnings as errors and to use a stub file:
 
 ```groovy
 checkerFramework {
@@ -88,7 +88,7 @@ Framework version 3.52.0, then you should add the following text to the Checker 
 ```
 
 You can also use a locally-built version of the Checker Framework specified by the `CHECKERFRAMEWORK` 
-environment variable: (in the Checker Framework configuration block)
+environment variable (in the Checker Framework configuration block):
 
 ```groovy
   // To use a locally-built Checker Framework, run gradle with "-PcfLocal".
@@ -158,6 +158,8 @@ tasks.withType(JavaCompile).configureEach {
 ```
 
 Currently, the only supported option is `skipCheckerFramework`.
+
+Also see the `excludeTests` configuration variable, described below.
 
 ### Other options
 
@@ -237,77 +239,14 @@ for different subprojects (for instance, if you want to run different checkers).
 
 ### Incompatibility with Error Prone 2.3.4 and earlier
 
-[Error Prone](https://errorprone.info/) uses the Checker Framework's dataflow
-analysis library.  Unfortunately, Error Prone version 2.3.4 and earlier uses an
-old version of the library, so you cannot use both Error Prone and the current
-Checker Framework (because each one depends on a different version of the
-library).
+To use both [Error Prone](https://errorprone.info/) and the Checker Framework,
+you need to use Error Prone version 2.4.0 (released in May 2020) or later.
 
-You can resolve this by:
-
-* upgrading to Error Prone version 2.4.0 or later, or
-* using a switch that causes your build to use either
-   Error Prone or the Checker Framework, but not both.
-
-Here is an example of the latter approach:
-
-<!-- markdownlint-disable line-length -->
-```gradle
-plugins {
-  id "net.ltgt.errorprone" version "1.1.1" apply false
-  // To do Checker Framework pluggable type-checking (and disable Error Prone), run:
-  // ./gradlew compileJava -PuseCheckerFramework=true
-  id "org.checkerframework" version "0.6.60" apply false
-}
-
-if (!project.hasProperty("useCheckerFramework")) {
-    ext.useCheckerFramework = "false"
-}
-if ("true".equals(project.ext.useCheckerFramework)) {
-  apply plugin: "org.checkerframework"
-} else {
-  apply plugin: "net.ltgt.errorprone"
-}
-
-def errorProneVersion = "2.3.4"
-def checkerFrameworkVersion = "3.51.1"
-
-dependencies {
-  if ("true".equals(project.ext.useCheckerFramework)) {
-    checkerFramework("org.checkerframework:checker:" + checkerFrameworkVersion)
-    checkerFramework("org.checkerframework:checker-qual:" + checkerFrameworkVersion)
-  } else {
-    errorprone("com.google.errorprone:error_prone_core:${errorProneVersion})
-  }
-}
-
-if ("true".equals(project.ext.useCheckerFramework)) {
-  checkerFramework {
-    checkers = [
-      "org.checkerframework.checker.interning.InterningChecker",
-      "org.checkerframework.checker.signature.SignatureChecker"
-    ]
-  }
-} else {
-  // Configuration for the Error Prone linter.
-  tasks.withType(JavaCompile).each { t ->
-    if (!t.name.equals("compileTestInputJava") && !t.name.startsWith("checkTypes")) {
-      t.toolChain(ErrorProneToolChain.create(project))
-      t.options.compilerArgs += [
-        "-Xep:StringSplitter:OFF",
-        "-Xep:ReferenceEquality:OFF" // use Interning Checker instead
-      ]
-    }
-  }
-}
-```
-<!-- markdownlint-enable line-length -->
-
-## Java 9+ compatibility
+## Modules
 
 The Checker Framework inserts inferred annotations into bytecode even if none
 appear in source code, so you must make them known to the compiler even if you
-write no annotations in your code.  When running the plugin on a Java 9+ project
+write no annotations in your code.  When running the plugin on a Java project
 that uses modules, you need to add annotations to the module path.
 
 Add following to your `module-info.java`:

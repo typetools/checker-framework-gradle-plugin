@@ -47,7 +47,7 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
           isCanBeConsumed = false
           isCanBeResolved = false
           defaultDependencies {
-            val version = findCFVersion(cfOptions)
+            val version = findCfVersion(cfOptions)
             if (version != "local") {
               add(project.dependencies.create("org.checkerframework:checker:$version"))
             } else {
@@ -65,7 +65,7 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
           isCanBeConsumed = false
           isCanBeResolved = false
           defaultDependencies {
-            val version = findCFVersion(cfOptions)
+            val version = findCfVersion(cfOptions)
             if (version != "local") {
               add(project.dependencies.create("org.checkerframework:checker-qual:$version"))
             } else {
@@ -145,6 +145,7 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
           )
         }
 
+        // MDE: If the annotationProcessorPath was null, this doesn't set it at all.  Is that intentional?
         options.annotationProcessorPath =
             options.annotationProcessorPath?.plus(project.files(cfBuildDir.toPath().toString()))
 
@@ -196,7 +197,7 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
     }
   }
 
-  private fun findCFVersion(cfOptions: CheckerFrameworkExtension): String =
+  private fun findCfVersion(cfOptions: CheckerFrameworkExtension): String =
       cfOptions.version.getOrElse(DEFAULT_CF_VERSION)
 
   internal class CheckerFrameworkCompilerArgumentProvider(
