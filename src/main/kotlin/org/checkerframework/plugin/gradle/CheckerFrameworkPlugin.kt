@@ -98,15 +98,12 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
     }
 
     project.tasks.withType<JavaCompile>().configureEach {
-      println("skip Prop: " + project.properties.getOrElse("skipCheckerFramework", { false }))
-      println("skip Cong: ${cfOptions.skipCheckerFramework.getOrElse(false)}")
       if (
           cfOptions.skipCheckerFramework.getOrElse(false) ||
               project.properties.getOrElse("skipCheckerFramework", { false }) != false ||
               (cfOptions.excludeTests.getOrElse(false) &&
                   name.lowercase(getDefault()).contains("test"))
       ) {
-        println("Skipped")
         return@configureEach
       }
 
