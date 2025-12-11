@@ -25,7 +25,7 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
     Plugin<Project> {
   companion object {
     const val PLUGIN_ID = "org.checkerframework"
-    const val CONFIGURATION_NAME = "checkerframework"
+    const val CONFIGURATION_NAME = "checkerFramework"
     const val DEFAULT_CF_VERSION = "3.52.1"
   }
 
@@ -36,7 +36,7 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
     //    }
 
     val cfOptions =
-        project.extensions.create("checkerframework", CheckerFrameworkExtension::class.java)
+        project.extensions.create("checkerFramework", CheckerFrameworkExtension::class.java)
 
     val cfConfiguration =
         project.configurations.register(CONFIGURATION_NAME) {

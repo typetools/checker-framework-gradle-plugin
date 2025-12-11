@@ -280,7 +280,7 @@ class CFPluginFunctionalTest : AbstractPluginFunctionalTest() {
   }
 
   @Test
-  fun `test checkerframework configuration`() {
+  fun `test checkerFramework configuration`() {
     // This tests that the version of the Checker Framework in the checker framework configuration
     // is used instead of the version in 'version'.
     val testVersion = "3.43.0"
@@ -288,7 +288,7 @@ class CFPluginFunctionalTest : AbstractPluginFunctionalTest() {
         """
                 
             dependencies {
-                checkerframework("org.checkerframework:checker:$DEFAULT_CF_VERSION")
+                checkerFramework("org.checkerframework:checker:$DEFAULT_CF_VERSION")
             }
             configure<CheckerFrameworkExtension> {
                 checkers = listOf("org.checkerframework.checker.index.IndexChecker")
