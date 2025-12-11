@@ -30,7 +30,7 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
   }
 
   override fun apply(project: Project) {
-    // TODO: What versions of Gradle work with this plugin?
+    // TODO: What versions of Gradle works with this plugin?
     //    if (GradleVersion.current() < GradleVersion.version("6.8")) {
     //      throw UnsupportedOperationException("$PLUGIN_ID requires at least Gradle 6.8")
     //    }
@@ -120,15 +120,17 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
           processorFile.parentFile.mkdirs()
           processorFile.createNewFile()
           processorFile.writeText(cfOptions.checkers.get().joinToString(separator = "\n") + "\n")
+          if (cfOptions.incrementalize) {
+            // https://docs.gradle.org/current/userguide/java_plugin.html#sec:incremental_annotation_processing
+            val gradleProcessorFile =
+                File(cfBuildDir, "META-INF/gradle/incremental.annotation.processors")
+            gradleProcessorFile.parentFile.mkdirs()
+            gradleProcessorFile.createNewFile()
 
-          // https://docs.gradle.org/current/userguide/java_plugin.html#sec:incremental_annotation_processing
-          val gradleProcessorFile =
-              File(cfBuildDir, "META-INF/gradle/incremental.annotation.processors")
-          gradleProcessorFile.parentFile.mkdirs()
-          gradleProcessorFile.createNewFile()
-          gradleProcessorFile.writeText(
-              cfOptions.checkers.get().joinToString(separator = ",isolating\n") + ",isolating\n"
-          )
+            gradleProcessorFile.writeText(
+                cfOptions.checkers.get().joinToString(separator = ",isolating\n") + ",isolating\n"
+            )
+          }
 
           options.annotationProcessorPath =
               options.annotationProcessorPath?.plus(project.files(cfBuildDir.toPath().toString()))

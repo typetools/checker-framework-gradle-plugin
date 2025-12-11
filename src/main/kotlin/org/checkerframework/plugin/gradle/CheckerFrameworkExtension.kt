@@ -29,18 +29,20 @@ abstract class CheckerFrameworkExtension {
    */
   val suppressLombokWarnings: Boolean = false
 
+  /**
+   *      Flag to disable automatic incremental compilation. By default, the Checker Framework
+   *      assumes that all checkers are incremental with type "isolating". Gradle's documentation
+   *      suggests that annotation processors that interact with Javac APIs might crash because
+   *      Gradle wraps some Javac APIs, so if you encounter such a crash you can disable incremental
+   *      compilation using this flag.
+   */
+  val incrementalize: Boolean = true
+
   // TODO Implement the options below:
   // Flag to disable the CF easily, from e.g. the command-line.
   val skipCheckerFramework: Boolean = false
 
   // If you encounter "zip file too large" errors, you can set this flag to avoid
   // the standard version check which unzips a jar to look at its manifest.
-  val skipVersionCheck: Boolean = false
-
-  // Flag to disable automatic incremental compilation. By default, the Checker Framework
-  // assumes that all checkers are incremental with type "isolating". Gradle's documentation
-  // suggests that annotation processors that interact with Javac APIs might crash because
-  // Gradle wraps some Javac APIs, so if you encounter such a crash you can disable incremental
-  // compilation using this flag.
-  val incrementalize: Boolean = false
+  @Deprecated(message = "This option is no longer needed.") val skipVersionCheck: Boolean = false
 }
