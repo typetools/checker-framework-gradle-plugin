@@ -27,7 +27,7 @@ abstract class CheckerFrameworkExtension {
    * Lombok's default but could permit unsoundness from the Checker Framework. For an example, see
    * https://github.com/kelloggm/checkerframework-gradle-plugin/issues/85.
    */
-  val suppressLombokWarnings: Boolean = false
+  var suppressLombokWarnings: Boolean = false
 
   /**
    *      Flag to disable automatic incremental compilation. By default, the Checker Framework
@@ -36,13 +36,12 @@ abstract class CheckerFrameworkExtension {
    *      Gradle wraps some Javac APIs, so if you encounter such a crash you can disable incremental
    *      compilation using this flag.
    */
-  val incrementalize: Boolean = true
+  var incrementalize: Boolean = true
 
-  // TODO Implement the options below:
   // Flag to disable the CF easily, from e.g. the command-line.
-  val skipCheckerFramework: Boolean = false
+  abstract val skipCheckerFramework: Property<Boolean>
 
   // If you encounter "zip file too large" errors, you can set this flag to avoid
   // the standard version check which unzips a jar to look at its manifest.
-  @Deprecated(message = "This option is no longer needed.") val skipVersionCheck: Boolean = false
+  @Deprecated(message = "This option is no longer needed.") var skipVersionCheck: Boolean = false
 }

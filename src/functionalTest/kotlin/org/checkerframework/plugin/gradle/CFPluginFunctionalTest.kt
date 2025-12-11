@@ -47,6 +47,53 @@ class CFPluginFunctionalTest : AbstractPluginFunctionalTest() {
   }
 
   @Test
+  fun `test skipCheckerFramework property`() {
+    buildFile.appendText(
+        """
+            
+        configure<CheckerFrameworkExtension> {
+            checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+            extraJavacArgs = listOf("-Aversion")
+        }
+        """
+            .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgs("compileJava", "-PskipCheckerFramework=true")
+
+    // then
+    assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(result.output).doesNotContain("Note: Checker Framework $DEFAULT_CF_VERSION")
+  }
+
+  @Test
+  fun `test skipCheckerFramework configure`() {
+    buildFile.appendText(
+        """
+            
+        configure<CheckerFrameworkExtension> {
+            checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+            extraJavacArgs = listOf("-Aversion")
+            skipCheckerFramework = true
+        }
+        """
+            .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgs("compileJava")
+
+    // then
+    assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(result.output).doesNotContain("Note: Checker Framework $DEFAULT_CF_VERSION")
+  }
+
+  @Test
   fun `test checker options`() {
     buildFile.appendText(
         """

@@ -98,57 +98,65 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
     }
 
     project.tasks.withType<JavaCompile>().configureEach {
+      println("skip Prop: " + project.properties.getOrElse("skipCheckerFramework", { false }))
+      println("skip Cong: ${cfOptions.skipCheckerFramework.getOrElse(false)}")
       if (
-          !cfOptions.excludeTests.getOrElse(false) || !name.lowercase(getDefault()).contains("test")
+          cfOptions.skipCheckerFramework.getOrElse(false) ||
+              project.properties.getOrElse("skipCheckerFramework", { false }) != false ||
+              (cfOptions.excludeTests.getOrElse(false) &&
+                  name.lowercase(getDefault()).contains("test"))
       ) {
-        // Add argument providers so that a user cannot accidentally override the Checker
-        // Framework options.
-        options.compilerArgumentProviders.add(CheckerFrameworkCompilerArgumentProvider(cfOptions))
-        options.forkOptions.jvmArgumentProviders.add(CheckerFrameworkJVMArgumentProvider())
+        println("Skipped")
+        return@configureEach
+      }
 
-        if (cfOptions.checkers.isPresent) {
-          // TODO: This should be in a task so that it happens once rather than for each JavaCompile
-          // task.
-          // Create META-INF/services/javax.annotation.processing.Processor and
-          // META-INF/gradle/incremental.annotation.processors
-          // files so that processor autodiscovery works.
-          val cfBuildDir = project.layout.buildDirectory.file("checkerframework").get().asFile
-          cfBuildDir.mkdirs()
-          // https://checkerframework.org/manual/#checker-auto-discovery
-          val processorFile =
-              File(cfBuildDir, "META-INF/services/javax.annotation.processing.Processor")
-          processorFile.parentFile.mkdirs()
-          processorFile.createNewFile()
-          processorFile.writeText(cfOptions.checkers.get().joinToString(separator = "\n") + "\n")
-          if (cfOptions.incrementalize) {
-            // https://docs.gradle.org/current/userguide/java_plugin.html#sec:incremental_annotation_processing
-            val gradleProcessorFile =
-                File(cfBuildDir, "META-INF/gradle/incremental.annotation.processors")
-            gradleProcessorFile.parentFile.mkdirs()
-            gradleProcessorFile.createNewFile()
+      // Add argument providers so that a user cannot accidentally override the Checker
+      // Framework options.
+      options.compilerArgumentProviders.add(CheckerFrameworkCompilerArgumentProvider(cfOptions))
+      options.forkOptions.jvmArgumentProviders.add(CheckerFrameworkJVMArgumentProvider())
 
-            gradleProcessorFile.writeText(
-                cfOptions.checkers.get().joinToString(separator = ",isolating\n") + ",isolating\n"
-            )
+      if (cfOptions.checkers.isPresent) {
+        // TODO: This should be in a task so that it happens once rather than for each JavaCompile
+        // task.
+        // Create META-INF/services/javax.annotation.processing.Processor and
+        // META-INF/gradle/incremental.annotation.processors
+        // files so that processor autodiscovery works.
+        val cfBuildDir = project.layout.buildDirectory.file("checkerframework").get().asFile
+        cfBuildDir.mkdirs()
+        // https://checkerframework.org/manual/#checker-auto-discovery
+        val processorFile =
+            File(cfBuildDir, "META-INF/services/javax.annotation.processing.Processor")
+        processorFile.parentFile.mkdirs()
+        processorFile.createNewFile()
+        processorFile.writeText(cfOptions.checkers.get().joinToString(separator = "\n") + "\n")
+        if (cfOptions.incrementalize) {
+          // https://docs.gradle.org/current/userguide/java_plugin.html#sec:incremental_annotation_processing
+          val gradleProcessorFile =
+              File(cfBuildDir, "META-INF/gradle/incremental.annotation.processors")
+          gradleProcessorFile.parentFile.mkdirs()
+          gradleProcessorFile.createNewFile()
+
+          gradleProcessorFile.writeText(
+              cfOptions.checkers.get().joinToString(separator = ",isolating\n") + ",isolating\n"
+          )
+        }
+
+        options.annotationProcessorPath =
+            options.annotationProcessorPath?.plus(project.files(cfBuildDir.toPath().toString()))
+
+        doFirst {
+          val processorArgIndex = options.compilerArgs.indexOf("-processor")
+          if (processorArgIndex != -1) {
+            // Because the user already passed -processor as a compiler arg, auto discovery will
+            // not work, so add the checkers to the list of processors.
+            // This can't be done in CheckerFrameworkCompilerArgumentProvider because it modifies
+            // existing arguments rather than adding a new one.
+            val oldProcessors = options.compilerArgs.get(processorArgIndex + 1)
+            val cfProcessors = cfOptions.checkers.get().joinToString(separator = ",")
+            options.compilerArgs.set(processorArgIndex + 1, "$oldProcessors,$cfProcessors")
           }
-
-          options.annotationProcessorPath =
-              options.annotationProcessorPath?.plus(project.files(cfBuildDir.toPath().toString()))
-
-          doFirst {
-            val processorArgIndex = options.compilerArgs.indexOf("-processor")
-            if (processorArgIndex != -1) {
-              // Because the user already passed -processor as a compiler arg, auto discovery will
-              // not work, so add the checkers to the list of processors.
-              // This can't be done in CheckerFrameworkCompilerArgumentProvider because it modifies
-              // existing arguments rather than adding a new one.
-              val oldProcessors = options.compilerArgs.get(processorArgIndex + 1)
-              val cfProcessors = cfOptions.checkers.get().joinToString(separator = ",")
-              options.compilerArgs.set(processorArgIndex + 1, "$oldProcessors,$cfProcessors")
-            }
-            // Must fork for the JVM arguments to be applied.
-            options.isFork = true
-          }
+          // Must fork for the JVM arguments to be applied.
+          options.isFork = true
         }
       }
 
