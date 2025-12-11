@@ -18,6 +18,8 @@ class CFPluginFunctionalTest : AbstractPluginFunctionalTest() {
         repositories {
             mavenCentral()
         }         
+
+
         """
             .trimIndent()
     )
@@ -205,6 +207,40 @@ class CFPluginFunctionalTest : AbstractPluginFunctionalTest() {
     assertThat(result.output).contains(TAINTING_FAILURE)
     assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.FAILED)
   }
+
+  // TODO: compileJava{
+  ////          options.checkerFrameworkCompile.enabled = false
+  ////        }
+  // works with groovy, but not here with Kotlin
+  //  @Test
+  //  fun `test disabling CF for some task`() {
+  //    buildFile.appendText(
+  //        """
+  //
+  //                    configure<CheckerFrameworkExtension> {
+  //                        extraJavacArgs = listOf("-Anomsgtext","-Afilenames")
+  //                        checkers =
+  // listOf("org.checkerframework.checker.tainting.TaintingChecker")
+  //                    }
+  //
+  //            tasks {
+  //        compileJava{
+  //          options.checkerFrameworkCompile.enabled = false
+  //        }
+  //                    }
+  //        """
+  //            .trimIndent()
+  //    )
+  //    // given
+  //    testProjectDir.writeTaintingFailure()
+  //
+  //    // when
+  //    val result = testProjectDir.buildWithArgsAndFail("compileJava")
+  //
+  //    // then
+  //    assertThat(result.output).contains("Note: NullnessChecker is type-checking")
+  //    assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+  //  }
 
   @Test
   fun `test version option`() {

@@ -109,7 +109,7 @@ ext {
 
 dependencies {
     checkerQual("io.github.eisop:checker-qual:${versions.eisopVersion}")
-    checkerframework("io.github.eisop:checker:${versions.eisopVersion}")
+    checkerFramework("io.github.eisop:checker:${versions.eisopVersion}")
 }
 ```
 

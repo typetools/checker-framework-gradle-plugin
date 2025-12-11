@@ -6,6 +6,7 @@ import javax.inject.Inject
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.Task
+import org.gradle.api.plugins.ExtensionAware
 import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.provider.ProviderFactory
 import org.gradle.api.tasks.SourceSetContainer
@@ -98,8 +99,14 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
     }
 
     project.tasks.withType<JavaCompile>().configureEach {
+      val cfCompileOptions =
+          (options as ExtensionAware)
+              .extensions
+              .create("checkerFrameworkCompile", CheckerFrameworkCompileExtension::class.java)
+
       if (
-          cfOptions.skipCheckerFramework.getOrElse(false) ||
+          !cfCompileOptions.enabled.getOrElse(true) ||
+              cfOptions.skipCheckerFramework.getOrElse(false) ||
               project.properties.getOrElse("skipCheckerFramework", { false }) != false ||
               (cfOptions.excludeTests.getOrElse(false) &&
                   name.lowercase(getDefault()).contains("test"))
