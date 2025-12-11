@@ -126,7 +126,7 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
         processorFile.parentFile.mkdirs()
         processorFile.createNewFile()
         processorFile.writeText(cfOptions.checkers.get().joinToString(separator = "\n") + "\n")
-        if (cfOptions.incrementalize) {
+        if (cfOptions.incrementalize.getOrElse(true)) {
           // https://docs.gradle.org/current/userguide/java_plugin.html#sec:incremental_annotation_processing
           val gradleProcessorFile =
               File(cfBuildDir, "META-INF/gradle/incremental.annotation.processors")
@@ -177,7 +177,7 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
           // The lombok plugin's default formatting is pretty-printing, without the @Generated
           // annotations that we need to recognize lombok'd code.
           delombokTask.extensions.add("generated", "generate")
-          if (cfOptions.suppressLombokWarnings) {
+          if (cfOptions.suppressLombokWarnings.getOrElse(false)) {
             // Also re-add suppress warnings annotations so that we don't get warnings from
             // generated code.
             delombokTask.extensions.add("suppressWarnings", "generate")
