@@ -90,6 +90,12 @@ Framework version 3.52.0, then you should add the following text to the Checker 
 You can also use a locally-built version of the Checker Framework specified by the `CHECKERFRAMEWORK` 
 environment variable: (in the Checker Framework configuration block)
 
+// MDE: I think the intention is that a user can write this in their own
+`build.gradle` file (that isn't clear).  However, I don't think this should be
+necessary.  It can be built into the plugin.  It would be nice for users to be
+able to pass `-PcfVersion=XXX` (or some similarly-named flag) and for XXX to
+override the version number specified in the gradle buildfile, without any code
+in their own gradle buildfile.
 ```groovy
   // To use a locally-built Checker Framework, run gradle with "-PcfLocal".
   if (project.hasProperty("cfLocal")) {
