@@ -117,7 +117,7 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
       // Add argument providers so that a user cannot accidentally override the Checker
       // Framework options.
       options.compilerArgumentProviders.add(CheckerFrameworkCompilerArgumentProvider(cfOptions))
-      options.forkOptions.jvmArgumentProviders.add(CheckerFrameworkJVMArgumentProvider())
+      options.forkOptions.jvmArgumentProviders.add(CheckerFrameworkJvmArgumentProvider())
 
       if (cfOptions.checkers.isPresent) {
         // TODO: This should be in a task so that it happens once rather than for each JavaCompile
@@ -145,7 +145,6 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
           )
         }
 
-        // MDE: If the annotationProcessorPath was null, this doesn't set it at all.  Is that intentional?
         options.annotationProcessorPath =
             options.annotationProcessorPath?.plus(project.files(cfBuildDir.toPath().toString()))
 
@@ -211,7 +210,7 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
     }
   }
 
-  internal class CheckerFrameworkJVMArgumentProvider() : CommandLineArgumentProvider {
+  internal class CheckerFrameworkJvmArgumentProvider() : CommandLineArgumentProvider {
     override fun asArguments(): Iterable<String?> {
       return listOf(
           "--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED",
