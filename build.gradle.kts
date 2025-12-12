@@ -26,8 +26,7 @@ gradlePlugin {
       id = "org.checkerframework"
       displayName = "Checker Framework Gradle Plugin"
       description =
-          "Re-usable build logic for extending the Java type system via the Checker Framework," +
-              " for Gradle builds"
+          "Gradle build logic for pluggable type-checking of Java via the Checker Framework"
       implementationClass = "org.checkerframework.plugin.gradle.CheckerFrameworkPlugin"
       tags.addAll(
           "checkerframework",
@@ -89,19 +88,7 @@ testing {
 tasks { check { dependsOn(testing.suites) } }
 
 spotless {
-  kotlinGradle {
-    ktfmt().googleStyle().configure {
-      it.setMaxWidth(100)
-      it.setBlockIndent(2)
-      it.setContinuationIndent(4)
-    }
-  }
+  kotlinGradle { ktfmt().googleStyle().configure { it.setContinuationIndent(4) } }
 
-  kotlin {
-    ktfmt().googleStyle().configure {
-      it.setMaxWidth(100)
-      it.setBlockIndent(2)
-      it.setContinuationIndent(4)
-    }
-  }
+  kotlin { ktfmt().googleStyle().configure { it.setContinuationIndent(4) } }
 }

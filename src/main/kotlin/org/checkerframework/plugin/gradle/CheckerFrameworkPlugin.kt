@@ -47,7 +47,7 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
           isCanBeConsumed = false
           isCanBeResolved = false
           defaultDependencies {
-            val version = findCFVersion(cfOptions)
+            val version = findCfVersion(cfOptions)
             if (version != "local") {
               add(project.dependencies.create("org.checkerframework:checker:$version"))
             } else {
@@ -65,7 +65,7 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
           isCanBeConsumed = false
           isCanBeResolved = false
           defaultDependencies {
-            val version = findCFVersion(cfOptions)
+            val version = findCfVersion(cfOptions)
             if (version != "local") {
               add(project.dependencies.create("org.checkerframework:checker-qual:$version"))
             } else {
@@ -117,7 +117,7 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
       // Add argument providers so that a user cannot accidentally override the Checker
       // Framework options.
       options.compilerArgumentProviders.add(CheckerFrameworkCompilerArgumentProvider(cfOptions))
-      options.forkOptions.jvmArgumentProviders.add(CheckerFrameworkJVMArgumentProvider())
+      options.forkOptions.jvmArgumentProviders.add(CheckerFrameworkJvmArgumentProvider())
 
       if (cfOptions.checkers.isPresent) {
         // TODO: This should be in a task so that it happens once rather than for each JavaCompile
@@ -196,7 +196,7 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
     }
   }
 
-  private fun findCFVersion(cfOptions: CheckerFrameworkExtension): String =
+  private fun findCfVersion(cfOptions: CheckerFrameworkExtension): String =
       cfOptions.version.getOrElse(DEFAULT_CF_VERSION)
 
   internal class CheckerFrameworkCompilerArgumentProvider(
@@ -210,7 +210,7 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
     }
   }
 
-  internal class CheckerFrameworkJVMArgumentProvider() : CommandLineArgumentProvider {
+  internal class CheckerFrameworkJvmArgumentProvider() : CommandLineArgumentProvider {
     override fun asArguments(): Iterable<String?> {
       return listOf(
           "--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED",
