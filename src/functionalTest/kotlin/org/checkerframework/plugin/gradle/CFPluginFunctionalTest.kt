@@ -12,6 +12,7 @@ class CFPluginFunctionalTest : AbstractPluginFunctionalTest() {
     buildFile.appendText(
         """
         plugins {
+            // MDE: Why does this use backticks?  Could it use double quotes?
             `java-library`
             id("org.checkerframework")
         }
@@ -28,6 +29,7 @@ class CFPluginFunctionalTest : AbstractPluginFunctionalTest() {
   @Test
   fun `test default version is used`() {
     buildFile.appendText(
+        // MDE: Throughout, I suggest removing the blank line from the beginning of strings.  It looks like a mistake.  I think it's intented to improve the readability of the generated file, but I doubt that is frequently read.
         """
             
         configure<CheckerFrameworkExtension> {

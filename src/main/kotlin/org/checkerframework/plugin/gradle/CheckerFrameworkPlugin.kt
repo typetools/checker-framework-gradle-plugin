@@ -36,6 +36,7 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
     //      throw UnsupportedOperationException("$PLUGIN_ID requires at least Gradle 6.8")
     //    }
 
+    // MDE: It's a bit surprising to see the name "options" for something that seems to be an extension.
     val cfOptions =
         project.extensions.create("checkerFramework", CheckerFrameworkExtension::class.java)
 
@@ -138,6 +139,7 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
         processorFile.writeText(cfOptions.checkers.get().joinToString(separator = "\n") + "\n")
         if (cfOptions.incrementalize.getOrElse(true)) {
           // https://docs.gradle.org/current/userguide/java_plugin.html#sec:incremental_annotation_processing
+          // MDE: Minor: Perhaps the next 4 lines could be abstracted into a function that takes two strings (a file name and file contents), because it's used identically just above.
           val gradleProcessorFile =
               File(cfBuildDir, "META-INF/gradle/incremental.annotation.processors")
           gradleProcessorFile.parentFile.mkdirs()
@@ -148,6 +150,7 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
           )
         }
 
+        // MDE: If the annotationProcessorPath was null, this doesn't set it at all.  Is that intentional?
         options.annotationProcessorPath =
             options.annotationProcessorPath?.plus(project.files(cfBuildDir.toPath().toString()))
 
