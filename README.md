@@ -119,6 +119,7 @@ dependencies {
 }
 ```
 
+// MDE: Please show a concrete example.
 You should also use a `checkerFramework` dependency for anything needed by a
 checker you are running. For example, if you are using the [Subtyping
 Checker](https://checkerframework.org/manual/#subtyping-checker) with custom
@@ -153,6 +154,12 @@ can be useful for skipping the Checker Framework on generated code:
 
 ```build.gradle
 tasks.withType(JavaCompile).configureEach {
+
+  // MDE: This comment "on generated code" confused me.  The example shows a
+  // way of skipping particular tasks, whether they are related to generated
+  // code or not.  So I would rename or reword, or remove the code comment from
+  // here and put the discussion in the paragraph above.
+  // MDE: It wasn't clear to me, reading this, what `name` is or how it is bound.
   // Don't run the checker on generated code.
   if (name.equals("compileMainGeneratedDataTemplateJava")
       || name.equals("compileMainGeneratedRestJava")) {
@@ -383,6 +390,7 @@ pluginManagement {
 }
 ```
 
+// MDE: I think you can drop these credits.  The plugin is no longer based on that abandoned code.
 ## Credits
 
 This project started as a fork of [an abandoned plugin built by jaredsburrows](https://github.com/jaredsburrows/gradle-checker-framework-plugin).
