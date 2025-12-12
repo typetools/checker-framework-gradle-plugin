@@ -12,9 +12,7 @@ import org.gradle.api.provider.ProviderFactory
 import org.gradle.api.tasks.SourceSetContainer
 import org.gradle.api.tasks.TaskProvider
 import org.gradle.api.tasks.compile.JavaCompile
-import org.gradle.kotlin.dsl.get
 import org.gradle.kotlin.dsl.getByName
-import org.gradle.kotlin.dsl.named
 import org.gradle.kotlin.dsl.withType
 import org.gradle.process.CommandLineArgumentProvider
 
@@ -36,7 +34,7 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
     //      throw UnsupportedOperationException("$PLUGIN_ID requires at least Gradle 6.8")
     //    }
 
-    val cfOptions =
+    val cfExtension =
         project.extensions.create("checkerFramework", CheckerFrameworkExtension::class.java)
 
     val cfConfiguration =
@@ -47,7 +45,7 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
           isCanBeConsumed = false
           isCanBeResolved = false
           defaultDependencies {
-            val version = findCfVersion(cfOptions)
+            val version = findCfVersion(cfExtension)
             if (version != "local") {
               add(project.dependencies.create("org.checkerframework:checker:$version"))
             } else {
@@ -65,7 +63,7 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
           isCanBeConsumed = false
           isCanBeResolved = false
           defaultDependencies {
-            val version = findCfVersion(cfOptions)
+            val version = findCfVersion(cfExtension)
             if (version != "local") {
               add(project.dependencies.create("org.checkerframework:checker-qual:$version"))
             } else {
@@ -85,7 +83,7 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
     project.plugins.withType<JavaBasePlugin> {
       project.extensions.getByName<SourceSetContainer>("sourceSets").configureEach {
         if (
-            !cfOptions.excludeTests.getOrElse(false) ||
+            !cfExtension.excludeTests.getOrElse(false) ||
                 !name.lowercase(getDefault()).contains("test")
         ) {
           project.configurations.named(annotationProcessorConfigurationName) {
@@ -106,9 +104,9 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
 
       if (
           !cfCompileOptions.enabled.getOrElse(true) ||
-              cfOptions.skipCheckerFramework.getOrElse(false) ||
+              cfExtension.skipCheckerFramework.getOrElse(false) ||
               project.properties.getOrElse("skipCheckerFramework", { false }) != false ||
-              (cfOptions.excludeTests.getOrElse(false) &&
+              (cfExtension.excludeTests.getOrElse(false) &&
                   name.lowercase(getDefault()).contains("test"))
       ) {
         return@configureEach
@@ -116,10 +114,10 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
 
       // Add argument providers so that a user cannot accidentally override the Checker
       // Framework options.
-      options.compilerArgumentProviders.add(CheckerFrameworkCompilerArgumentProvider(cfOptions))
+      options.compilerArgumentProviders.add(CheckerFrameworkCompilerArgumentProvider(cfExtension))
       options.forkOptions.jvmArgumentProviders.add(CheckerFrameworkJvmArgumentProvider())
 
-      if (cfOptions.checkers.isPresent) {
+      if (cfExtension.checkers.isPresent) {
         // TODO: This should be in a task so that it happens once rather than for each JavaCompile
         // task.
         // Create META-INF/services/javax.annotation.processing.Processor and
@@ -132,8 +130,8 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
             File(cfBuildDir, "META-INF/services/javax.annotation.processing.Processor")
         processorFile.parentFile.mkdirs()
         processorFile.createNewFile()
-        processorFile.writeText(cfOptions.checkers.get().joinToString(separator = "\n") + "\n")
-        if (cfOptions.incrementalize.getOrElse(true)) {
+        processorFile.writeText(cfExtension.checkers.get().joinToString(separator = "\n") + "\n")
+        if (cfExtension.incrementalize.getOrElse(true)) {
           // https://docs.gradle.org/current/userguide/java_plugin.html#sec:incremental_annotation_processing
           val gradleProcessorFile =
               File(cfBuildDir, "META-INF/gradle/incremental.annotation.processors")
@@ -141,7 +139,7 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
           gradleProcessorFile.createNewFile()
 
           gradleProcessorFile.writeText(
-              cfOptions.checkers.get().joinToString(separator = ",isolating\n") + ",isolating\n"
+              cfExtension.checkers.get().joinToString(separator = ",isolating\n") + ",isolating\n"
           )
         }
 
@@ -156,7 +154,7 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
             // This can't be done in CheckerFrameworkCompilerArgumentProvider because it modifies
             // existing arguments rather than adding a new one.
             val oldProcessors = options.compilerArgs.get(processorArgIndex + 1)
-            val cfProcessors = cfOptions.checkers.get().joinToString(separator = ",")
+            val cfProcessors = cfExtension.checkers.get().joinToString(separator = ",")
             options.compilerArgs.set(processorArgIndex + 1, "$oldProcessors,$cfProcessors")
           }
           // Must fork for the JVM arguments to be applied.
@@ -184,7 +182,7 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
           // The lombok plugin's default formatting is pretty-printing, without the @Generated
           // annotations that we need to recognize lombok'd code.
           delombokTask.extensions.add("generated", "generate")
-          if (cfOptions.suppressLombokWarnings.getOrElse(false)) {
+          if (cfExtension.suppressLombokWarnings.getOrElse(false)) {
             // Also re-add suppress warnings annotations so that we don't get warnings from
             // generated code.
             delombokTask.extensions.add("suppressWarnings", "generate")
