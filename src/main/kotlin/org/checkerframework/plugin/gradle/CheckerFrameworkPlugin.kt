@@ -1,7 +1,6 @@
 package org.checkerframework.plugin.gradle
 
 import java.io.File
-import java.util.Locale.getDefault
 import javax.inject.Inject
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -82,10 +81,7 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
     // If the user set `excludeTests` to true, then the jars are not added to test configurations.
     project.plugins.withType<JavaBasePlugin> {
       project.extensions.getByName<SourceSetContainer>("sourceSets").configureEach {
-        if (
-            !cfExtension.excludeTests.getOrElse(false) ||
-                !name.lowercase(getDefault()).contains("test")
-        ) {
+        if (!cfExtension.excludeTests.getOrElse(false) || !isTestName(name)) {
           project.configurations.named(annotationProcessorConfigurationName) {
             extendsFrom(cfConfiguration.get())
           }
@@ -106,8 +102,7 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
           !cfCompileOptions.enabled.getOrElse(true) ||
               cfExtension.skipCheckerFramework.getOrElse(false) ||
               project.properties.getOrElse("skipCheckerFramework", { false }) != false ||
-              (cfExtension.excludeTests.getOrElse(false) &&
-                  name.lowercase(getDefault()).contains("test"))
+              (cfExtension.excludeTests.getOrElse(false) && isTestName(name))
       ) {
         return@configureEach
       }
@@ -196,6 +191,10 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
 
   private fun findCfVersion(cfOptions: CheckerFrameworkExtension): String =
       cfOptions.version.getOrElse(DEFAULT_CF_VERSION)
+
+  private fun isTestName(string: String): Boolean {
+    return string.contains("test") || string.contains("Test")
+  }
 
   internal class CheckerFrameworkCompilerArgumentProvider(
       private val cfOptions: CheckerFrameworkExtension
