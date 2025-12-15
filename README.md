@@ -87,17 +87,13 @@ Framework version 3.52.0, then you should add the following text to the Checker 
   version = "3.52.0"
 ```
 
-You can also use a locally-built version of the Checker Framework specified by the `CHECKERFRAMEWORK` 
-environment variable (in the Checker Framework configuration block):
+You may also set the version to `"local"` which will use a locally-built version of the Checker Framework specified by the `CHECKERFRAMEWORK`
 
 ```groovy
-  // To use a locally-built Checker Framework, run gradle with "-PcfLocal".
-  if (project.hasProperty("cfLocal")) {
-    version = "local"
-  } else {
-    version = "3.52.0"
-  }
+  version = "local"
 ```
+
+Or you can run a Gradle task with and pass `"-PcfLocal"` so that the local version will be used for that task.
 
 You can also directly specify which checker and checker-qual jars to use:
 ```groovy

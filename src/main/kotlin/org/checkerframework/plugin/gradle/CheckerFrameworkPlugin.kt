@@ -45,11 +45,11 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
           isCanBeResolved = false
           defaultDependencies {
             val version = findCfVersion(cfExtension)
-            if (version != "local") {
-              add(project.dependencies.create("org.checkerframework:checker:$version"))
-            } else {
+            if (version == "local" || project.hasProperty("cfLocal")) {
               val cfHome = System.getenv("CHECKERFRAMEWORK")
               add(project.dependencies.create(project.files("${cfHome}/checker/dist/checker.jar")))
+            } else {
+              add(project.dependencies.create("org.checkerframework:checker:$version"))
             }
           }
         }
@@ -63,15 +63,16 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
           isCanBeResolved = false
           defaultDependencies {
             val version = findCfVersion(cfExtension)
-            if (version != "local") {
-              add(project.dependencies.create("org.checkerframework:checker-qual:$version"))
-            } else {
+            if (version == "local" || project.hasProperty("cfLocal")) {
+
               val cfHome = System.getenv("CHECKERFRAMEWORK")
               add(
                   project.dependencies.create(
                       project.files("${cfHome}/checker/dist/checker-qual.jar")
                   )
               )
+            } else {
+              add(project.dependencies.create("org.checkerframework:checker-qual:$version"))
             }
           }
         }

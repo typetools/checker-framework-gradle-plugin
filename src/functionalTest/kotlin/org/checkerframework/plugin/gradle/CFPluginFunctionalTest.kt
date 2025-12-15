@@ -307,6 +307,36 @@ class CfPluginFunctionalTest : AbstractPluginFunctionalTest() {
   }
 
   @Test
+  fun `test property local`() {
+    buildFile.appendText(
+        """
+        configure<CheckerFrameworkExtension> {
+            checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+            extraJavacArgs = listOf("-Aversion")
+        }
+         tasks.named<JavaCompile>("compileJava") {
+         doLast{
+            println(classpath.asPath)
+            }
+          }
+
+        """
+            .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgs("compileJava", "-PcfLocal")
+
+    // then
+    assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    //    assertThat(result.output).contains("Note: Checker Framework $DEFAULT_CF_VERSION")
+
+    assertThat(result.output).contains("checker-qual.jar")
+  }
+
+  @Test
   fun `test checkerFramework configuration`() {
     // This tests that the version of the Checker Framework in the checker framework configuration
     // is used instead of the version in 'version'.
