@@ -140,10 +140,10 @@ configuration block:
   }
 ```
 
-### Per-Task Configuration
+### Disabling the Checker Framework for a specific compile task
 
-You can also use a `checkerFramework` block to configure individual tasks. This
-can be useful for skipping the Checker Framework on generated code:
+You can also use a `checkerFramework` block to disable the Checker Framework for specific tasks. 
+This can be useful for skipping the Checker Framework on generated code:
 
 ```build.gradle
 tasks.withType(JavaCompile).configureEach {
@@ -151,13 +151,13 @@ tasks.withType(JavaCompile).configureEach {
   if (name.equals("compileMainGeneratedDataTemplateJava")
       || name.equals("compileMainGeneratedRestJava")) {
     checkerFramework {
-      skipCheckerFramework = true
+      enabled = false
     }
   }
 }
 ```
 
-Currently, the only supported option is `skipCheckerFramework`.
+Currently, the only supported option is `enabled`.
 
 Also see the `excludeTests` configuration variable, described below.
 
@@ -224,10 +224,7 @@ subprojects { subproject ->
 
   checkerFramework {
     checkers = ["org.checkerframework.checker.index.IndexChecker"]
-  }
-  dependencies {
-    checkerFramework "org.checkerframework:checker:3.51.1"
-    implementation "org.checkerframework:checker-qual:3.51.1"
+    version = "3.52.2"
   }
 }
 ```
@@ -315,11 +312,6 @@ pluginManagement {
     }
 }
 ```
-
-## Credits
-
-This project started as a fork of [an abandoned plugin built by jaredsburrows](https://github.com/jaredsburrows/gradle-checker-framework-plugin).
-[![Twitter Follow](https://img.shields.io/twitter/follow/jaredsburrows.svg?style=social)](https://twitter.com/jaredsburrows)
 
 ## License
 

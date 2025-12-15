@@ -107,8 +107,8 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
         return@configureEach
       }
 
-      // Add argument providers so that a user cannot accidentally override the Checker
-      // Framework options.
+      // Add argument providers so that a user cannot accidentally overwrite the Checker
+      // Framework options, i.e. options.compilerArgs = [...].
       options.compilerArgumentProviders.add(CheckerFrameworkCompilerArgumentProvider(cfExtension))
       options.forkOptions.jvmArgumentProviders.add(CheckerFrameworkJvmArgumentProvider())
 
@@ -121,23 +121,24 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
         val cfBuildDir = project.layout.buildDirectory.file("checkerframework").get().asFile
         cfBuildDir.mkdirs()
         // https://checkerframework.org/manual/#checker-auto-discovery
-        val processorFile =
-            File(cfBuildDir, "META-INF/services/javax.annotation.processing.Processor")
-        processorFile.parentFile.mkdirs()
-        processorFile.createNewFile()
-        processorFile.writeText(cfExtension.checkers.get().joinToString(separator = "\n") + "\n")
+        writeManifestFile(
+            cfBuildDir,
+            cfExtension.checkers.get(),
+            "META-INF/services/javax.annotation.processing.Processor",
+            "\n",
+        )
         if (cfExtension.incrementalize.getOrElse(true)) {
           // https://docs.gradle.org/current/userguide/java_plugin.html#sec:incremental_annotation_processing
-          val gradleProcessorFile =
-              File(cfBuildDir, "META-INF/gradle/incremental.annotation.processors")
-          gradleProcessorFile.parentFile.mkdirs()
-          gradleProcessorFile.createNewFile()
-
-          gradleProcessorFile.writeText(
-              cfExtension.checkers.get().joinToString(separator = ",isolating\n") + ",isolating\n"
+          writeManifestFile(
+              cfBuildDir,
+              cfExtension.checkers.get(),
+              "META-INF/gradle/incremental.annotation.processors",
+              ",isolating\n",
           )
         }
 
+        //  If the annotationProcessorPath is null, then annotation processing is disabled, so no
+        // need to add things to the path.
         options.annotationProcessorPath =
             options.annotationProcessorPath?.plus(project.files(cfBuildDir.toPath().toString()))
 
@@ -187,6 +188,18 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
         }
       }
     }
+  }
+
+  private fun writeManifestFile(
+      cfBuildDir: File,
+      checkers: List<String>,
+      fileName: String,
+      separator: String,
+  ) {
+    val processorFile = File(cfBuildDir, fileName)
+    processorFile.parentFile.mkdirs()
+    processorFile.createNewFile()
+    processorFile.writeText(checkers.joinToString(separator = separator, postfix = separator))
   }
 
   private fun findCfVersion(cfOptions: CheckerFrameworkExtension): String =

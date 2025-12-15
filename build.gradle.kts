@@ -3,13 +3,13 @@ import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 plugins {
   `java-gradle-plugin`
   `kotlin-dsl`
-  id("maven-publish")
+  `maven-publish`
   alias(libs.plugins.spotless)
 }
 
 group = "org.checkerframework"
 
-version = "1.0.0-SNAPSHOT"
+version = "0.9.0-SNAPSHOT"
 
 repositories { mavenCentral() }
 

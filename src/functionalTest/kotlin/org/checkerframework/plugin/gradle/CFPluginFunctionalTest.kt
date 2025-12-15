@@ -12,7 +12,7 @@ class CfPluginFunctionalTest : AbstractPluginFunctionalTest() {
     buildFile.appendText(
         """
         plugins {
-            id("java-library")
+            `java-library`
             id("org.checkerframework")
         }
         repositories {
