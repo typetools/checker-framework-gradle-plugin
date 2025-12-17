@@ -13,6 +13,7 @@ import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.kotlin.dsl.getByName
 import org.gradle.kotlin.dsl.withType
 import org.gradle.process.CommandLineArgumentProvider
+import org.gradle.util.GradleVersion
 
 /**
  * A [Plugin] that configures [JavaCompile] tasks to use the
@@ -27,10 +28,9 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
   }
 
   override fun apply(project: Project) {
-    // TODO: What versions of Gradle works with this plugin?
-    //    if (GradleVersion.current() < GradleVersion.version("6.8")) {
-    //      throw UnsupportedOperationException("$PLUGIN_ID requires at least Gradle 6.8")
-    //    }
+        if (GradleVersion.current() < GradleVersion.version("7.3")) {
+          throw UnsupportedOperationException("$PLUGIN_ID requires at least Gradle 7.3")
+        }
 
     val cfExtension =
         project.extensions.create("checkerFramework", CheckerFrameworkExtension::class.java)
