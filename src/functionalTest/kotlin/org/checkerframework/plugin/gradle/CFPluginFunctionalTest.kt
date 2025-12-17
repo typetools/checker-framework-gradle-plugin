@@ -4,6 +4,7 @@ import com.google.common.truth.Truth.assertThat
 import org.checkerframework.plugin.gradle.CheckerFrameworkPlugin.Companion.DEFAULT_CF_VERSION
 import org.gradle.testkit.runner.TaskOutcome
 import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 
 class CfPluginFunctionalTest : AbstractPluginFunctionalTest() {
@@ -271,6 +272,7 @@ class CfPluginFunctionalTest : AbstractPluginFunctionalTest() {
     assertThat(result2.output).contains("checker-qual-$testVersion.jar")
   }
 
+  @Disabled("Need to install a Checker Framework for CI.")
   @Test
   fun `test version local option`() {
     buildFile.appendText(
@@ -306,6 +308,7 @@ class CfPluginFunctionalTest : AbstractPluginFunctionalTest() {
     assertThat(result2.output).contains("checker-qual.jar")
   }
 
+  @Disabled("Need to install a Checker Framework for CI.")
   @Test
   fun `test property local`() {
     buildFile.appendText(
