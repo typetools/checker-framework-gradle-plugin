@@ -78,6 +78,8 @@ testing {
             val metadata = launcher.get().metadata
             systemProperty("test.java-version", metadata.languageVersion.asInt())
             systemProperty("test.java-home", metadata.installationPath.asFile.canonicalPath)
+            val testGradleVersion = project.findProperty("test.gradle-version")
+            testGradleVersion?.also { systemProperty("test.gradle-version", testGradleVersion) }
           }
         }
       }

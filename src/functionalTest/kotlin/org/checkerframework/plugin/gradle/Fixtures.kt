@@ -3,8 +3,13 @@ package org.checkerframework.plugin.gradle
 import java.io.File
 import org.gradle.testkit.runner.BuildResult
 import org.gradle.testkit.runner.GradleRunner
+import org.gradle.util.GradleVersion
+import org.gradle.util.GradleVersion.version
 
 val testJavaHome = System.getProperty("test.java-home", System.getProperty("java.home"))
+val testGradleVersion =
+    System.getProperty("test.gradle-version")?.let(GradleVersion::version)
+        ?: GradleVersion.current()
 
 fun File.writeEmptyClass() {
   File(this.resolve("src/main/java/test").apply { mkdirs() }, "Success.java").apply {
@@ -105,6 +110,7 @@ fun File.buildWithArgsAndFail(vararg tasks: String): BuildResult =
 
 fun File.prepareBuild(vararg tasks: String): GradleRunner =
     GradleRunner.create()
+        .withGradleVersion(testGradleVersion.version)
         .withProjectDir(this)
         .withPluginClasspath()
         .withArguments(*tasks)
