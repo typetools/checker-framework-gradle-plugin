@@ -123,8 +123,6 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
       options.forkOptions.jvmArgumentProviders.add(CheckerFrameworkJvmArgumentProvider())
 
       if (cfExtension.checkers.isPresent) {
-        // TODO: This should be in a task so that it happens once rather than for each JavaCompile
-        // task.
         //  If the annotationProcessorPath is null, then annotation processing is disabled, so no
         // need to add things to the path.
         options.annotationProcessorPath =
