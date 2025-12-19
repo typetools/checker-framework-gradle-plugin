@@ -28,9 +28,9 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
   }
 
   override fun apply(project: Project) {
-        if (GradleVersion.current() < GradleVersion.version("7.3")) {
-          throw UnsupportedOperationException("$PLUGIN_ID requires at least Gradle 7.3")
-        }
+    if (GradleVersion.current() < GradleVersion.version("7.3")) {
+      throw UnsupportedOperationException("$PLUGIN_ID requires at least Gradle 7.3")
+    }
 
     val cfExtension =
         project.extensions.create("checkerFramework", CheckerFrameworkExtension::class.java)
