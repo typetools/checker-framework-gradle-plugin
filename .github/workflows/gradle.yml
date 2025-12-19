@@ -55,7 +55,7 @@ jobs:
     - name: Generate and submit dependency graph
       uses: gradle/actions/dependency-submission@af1da67850ed9a4cedd57bfd976089dd991e2582 # v4.0.0
 
-              
+
   test-gradle:
     runs-on: ubuntu-latest
     strategy:
@@ -91,9 +91,7 @@ jobs:
       - uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
-          java-version: |
-            ${{ matrix.java }}
-            21
+          java-version: ${{ matrix.java }}
 
       - name: Setup environment
         run: |
@@ -103,4 +101,4 @@ jobs:
       - name: Build with Gradle
         id: gradle-build
         run: ./gradlew functionalTest "-Ptest.java-toolchain=${{ matrix.java }}" "-Ptest.gradle-version=9.2.1"
-    
+
