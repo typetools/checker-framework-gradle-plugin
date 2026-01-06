@@ -58,7 +58,6 @@ testing {
     val test by getting(JvmTestSuite::class) { dependencies { implementation(project()) } }
     register<JvmTestSuite>("functionalTest") {
       dependencies {
-        implementation(project()) { because("Needs access to DEFAULT_CF_VERSION.") }
         implementation(gradleTestKit())
       }
       // associate with main Kotlin compilation to access internal constants

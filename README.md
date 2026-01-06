@@ -24,7 +24,46 @@ or `java-library` plugin for non-Android builds).
 
 ## Configuration
 
-### Configuring which checkers to use
+### The Checker Framework version
+
+You must specify which
+[version](https://github.com/typetools/checker-framework/releases) of the
+Checker Framework to use.  For example:
+
+```groovy
+checkerFramework {
+  version = "3.52.0"
+}
+```
+
+The special value *`"local"`* means to use a locally-built version of the Checker
+Framework, found at environment varibale `$CHECKERFRAMEWORK`.
+
+The special value *`"none"`* means to not use the Checker Framework.
+
+You can override the Checker Framework version in your `build.gradle` by running
+Gradle with the command-line argument `-PcfLocal=...`, where "..." is replaced
+by a version number (or "local" or "none").
+
+#### Checker Framework jar files
+
+Alternately, you can directly specify which checker and checker-qual jars to
+use:
+
+```groovy
+ext {
+    versions = [
+        eisopVersion: "3.42.0-eisop1",
+    ]
+}
+
+dependencies {
+    checkerQual("io.github.eisop:checker-qual:${versions.eisopVersion}")
+    checkerFramework("io.github.eisop:checker:${versions.eisopVersion}")
+}
+```
+
+### Which checkers to run
 
 The `checkerFramework.checkers` property lists which checkers will be run.
 
@@ -55,6 +94,21 @@ configure<CheckerFrameworkExtension> {
 
 For a list of checkers, see the [Checker Framework Manual](https://checkerframework.org/manual/#introduction).
 
+#### Checker dependencies
+
+If a checker you are running has any dependencies, use a `checkerFramework` dependency:
+
+```groovy
+dependencies {
+    checkerFramework("...")
+}
+```
+
+For example, if you are using the
+[Subtyping Checker](https://checkerframework.org/manual/#subtyping-checker) with
+custom type qualifiers, you should add a `checkerFramework` dependency referring
+to the definitions of the custom qualifiers.
+
 ### Providing additional options to the compiler
 
 You can set the `checkerFramework.extraJavacArgs` property in order to pass
@@ -70,51 +124,6 @@ checkerFramework {
   ]
 }
 ```
-
-### Specifying a Checker Framework version
-
-Version 0.6.60 of this plugin uses Checker Framework version 3.51.1 by default.
-Anytime you upgrade to a newer version of this plugin,
-it might use a different version of the Checker Framework.
-
-You can use a Checker Framework
-[version](https://github.com/typetools/checker-framework/releases) that is
-different from this plugin's default.  For example, if you want to use Checker
-Framework version 3.52.0, then you should add the following text to the Checker Framework configuration block
-`build.gradle`, after `apply plugin: "org.checkerframework"`:
-
-```groovy
-  version = "3.52.0"
-```
-
-You may also set the version to `"local"` which will use a locally-built version of the Checker Framework specified by the `CHECKERFRAMEWORK`
-
-```groovy
-  version = "local"
-```
-
-Or you can run a Gradle task with and pass `"-PcfLocal"` so that the local version will be used for that task.
-
-You can also directly specify which checker and checker-qual jars to use:
-```groovy
-ext {
-    versions = [
-        eisopVersion: "3.42.0-eisop1",
-    ]
-}
-
-dependencies {
-    checkerQual("io.github.eisop:checker-qual:${versions.eisopVersion}")
-    checkerFramework("io.github.eisop:checker:${versions.eisopVersion}")
-}
-```
-
-You should also use a `checkerFramework` dependency for anything needed by a
-checker you are running. For example, if you are using the [Subtyping
-Checker](https://checkerframework.org/manual/#subtyping-checker) with custom
-type qualifiers, you should add a `checkerFramework` dependency referring to the
-definitions of the custom qualifiers.
-
 
 ### Incremental compilation
 
@@ -141,6 +150,8 @@ configuration block:
 You can also use a `checkerFramework` block to disable the Checker Framework for specific tasks. 
 This can be useful for skipping the Checker Framework on generated code:
 
+[comment]: # (Can the `enabled` field setting be eliminated in favor of `version = "none"`?)
+
 ```build.gradle
 tasks.withType(JavaCompile).configureEach {
   // Don't run the checker on generated code.
@@ -165,13 +176,11 @@ Also see the `excludeTests` configuration variable, described below.
 
   ```groovy
   checkerFramework {
-    skipCheckerFramework = true
+    version = "none"
   }
   ```
 
-  From the command line, add `-PskipCheckerFramework` to your gradle invocation.
-  This property can also take an argument:
-  anything other than `false` results in the Checker Framework being skipped.
+  From the command line, add `-PcfVersion=none` to your gradle invocation.
 
 * By default, the plugin applies the selected checkers to all `JavaCompile` targets,
   including test targets such as `testCompileJava`.

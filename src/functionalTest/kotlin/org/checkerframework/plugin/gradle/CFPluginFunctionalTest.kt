@@ -1,11 +1,12 @@
 package org.checkerframework.plugin.gradle
 
 import com.google.common.truth.Truth.assertThat
-import org.checkerframework.plugin.gradle.CheckerFrameworkPlugin.Companion.DEFAULT_CF_VERSION
 import org.gradle.testkit.runner.TaskOutcome
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
+
+const val DEFAULT_CF_VERSION = "3.52.1"
 
 class CfPluginFunctionalTest : AbstractPluginFunctionalTest() {
   @BeforeEach
@@ -30,6 +31,7 @@ class CfPluginFunctionalTest : AbstractPluginFunctionalTest() {
     buildFile.appendText(
         """
         configure<CheckerFrameworkExtension> {
+            version = 
             checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
             extraJavacArgs = listOf("-Aversion")
         }
