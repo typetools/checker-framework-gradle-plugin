@@ -31,7 +31,7 @@ class CfPluginFunctionalTest : AbstractPluginFunctionalTest() {
     buildFile.appendText(
         """
         configure<CheckerFrameworkExtension> {
-            version = 
+            version = "$DEFAULT_CF_VERSION"
             checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
             extraJavacArgs = listOf("-Aversion")
         }
@@ -54,6 +54,7 @@ class CfPluginFunctionalTest : AbstractPluginFunctionalTest() {
     buildFile.appendText(
         """
         configure<CheckerFrameworkExtension> {
+            version = "$DEFAULT_CF_VERSION"
             checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
             extraJavacArgs = listOf("-Aversion")
         }
@@ -76,6 +77,7 @@ class CfPluginFunctionalTest : AbstractPluginFunctionalTest() {
     buildFile.appendText(
         """
         configure<CheckerFrameworkExtension> {
+            version = "$DEFAULT_CF_VERSION"
             checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
             extraJavacArgs = listOf("-Aversion")
             skipCheckerFramework = true
@@ -98,25 +100,26 @@ class CfPluginFunctionalTest : AbstractPluginFunctionalTest() {
   fun `test checker options`() {
     buildFile.appendText(
         """
-         configure<CheckerFrameworkExtension> {
-           checkers = listOf("org.checkerframework.checker.regex.RegexChecker",
-           "org.checkerframework.checker.resourceleak.ResourceLeakChecker",
-           "org.checkerframework.checker.signedness.SignednessChecker",
-           "org.checkerframework.checker.signature.SignatureChecker",)
-         
-           extraJavacArgs = listOf("-ArequirePrefixInWarningSuppressions",
-           "-AwarnUnneededSuppressions",
-           "-AwarnRedundantAnnotations",
-           "-ApermitStaticOwning",
-         )
+        configure<CheckerFrameworkExtension> {
+          version = "$DEFAULT_CF_VERSION"
+          checkers = listOf("org.checkerframework.checker.regex.RegexChecker",
+          "org.checkerframework.checker.resourceleak.ResourceLeakChecker",
+          "org.checkerframework.checker.signedness.SignednessChecker",
+          "org.checkerframework.checker.signature.SignatureChecker",)
+
+          extraJavacArgs = listOf("-ArequirePrefixInWarningSuppressions",
+          "-AwarnUnneededSuppressions",
+          "-AwarnRedundantAnnotations",
+          "-ApermitStaticOwning",
+        )
+       }
+        tasks.named<JavaCompile>("compileJava") {
+            options.compilerArgs = listOf(
+            "-g",
+            "-nowarn",
+            "-Xlint:-classfile,-options"
+          )
         }
-         tasks.named<JavaCompile>("compileJava") {
-             options.compilerArgs = listOf(
-             "-g",
-             "-nowarn",
-             "-Xlint:-classfile,-options"
-           )
-         }
 
         """
             .trimIndent()
@@ -136,6 +139,7 @@ class CfPluginFunctionalTest : AbstractPluginFunctionalTest() {
     buildFile.appendText(
         """
         configure<CheckerFrameworkExtension> {
+            version = "$DEFAULT_CF_VERSION"
             checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
         }
         """
@@ -158,6 +162,7 @@ class CfPluginFunctionalTest : AbstractPluginFunctionalTest() {
     buildFile.appendText(
         """
         configure<CheckerFrameworkExtension> {
+            version = "$DEFAULT_CF_VERSION"
             extraJavacArgs = listOf("-Anomsgtext","-Afilenames")
             checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker",
             "org.checkerframework.checker.tainting.TaintingChecker")
@@ -182,6 +187,7 @@ class CfPluginFunctionalTest : AbstractPluginFunctionalTest() {
     buildFile.appendText(
         """
         configure<CheckerFrameworkExtension> {
+            version = "$DEFAULT_CF_VERSION"
             extraJavacArgs = listOf("-Anomsgtext","-Afilenames")
             checkers = listOf("org.checkerframework.checker.tainting.TaintingChecker")
         }
@@ -210,8 +216,9 @@ class CfPluginFunctionalTest : AbstractPluginFunctionalTest() {
     buildFile.appendText(
         """
         configure<CheckerFrameworkExtension> {
-          extraJavacArgs = listOf("-Anomsgtext","-Afilenames")
-          checkers =listOf("org.checkerframework.checker.tainting.TaintingChecker")
+            version = "$DEFAULT_CF_VERSION"
+            extraJavacArgs = listOf("-Anomsgtext","-Afilenames")
+            checkers =listOf("org.checkerframework.checker.tainting.TaintingChecker")
         }
 
         tasks {
@@ -238,19 +245,20 @@ class CfPluginFunctionalTest : AbstractPluginFunctionalTest() {
     val testVersion = "3.43.0"
     buildFile.appendText(
         """
-            configure<CheckerFrameworkExtension> {
-                checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
-                version = "$testVersion"
-                extraJavacArgs = listOf("-Aversion")
-            }
-            tasks.register("printCompileClasspath") {
-                doLast {
-                    println("Compile Classpath:")
-                    sourceSets.main.get().compileClasspath.forEach { file ->
-                        println(file.absolutePath)
-                    }
+        configure<CheckerFrameworkExtension> {
+            version = "$DEFAULT_CF_VERSION"
+            checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+            version = "$testVersion"
+            extraJavacArgs = listOf("-Aversion")
+        }
+        tasks.register("printCompileClasspath") {
+            doLast {
+                println("Compile Classpath:")
+                sourceSets.main.get().compileClasspath.forEach { file ->
+                    println(file.absolutePath)
                 }
             }
+        }
             
       """
             .trimIndent()
@@ -275,6 +283,7 @@ class CfPluginFunctionalTest : AbstractPluginFunctionalTest() {
     buildFile.appendText(
         """
         configure<CheckerFrameworkExtension> {
+            version = "$DEFAULT_CF_VERSION"
             checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
             version = "local"
             extraJavacArgs = listOf("-Aversion")
@@ -311,6 +320,7 @@ class CfPluginFunctionalTest : AbstractPluginFunctionalTest() {
     buildFile.appendText(
         """
         configure<CheckerFrameworkExtension> {
+            version = "$DEFAULT_CF_VERSION"
             checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
             extraJavacArgs = listOf("-Aversion")
         }
@@ -343,14 +353,15 @@ class CfPluginFunctionalTest : AbstractPluginFunctionalTest() {
     val testVersion = "3.43.0"
     buildFile.appendText(
         """
-            dependencies {
-                checkerFramework("org.checkerframework:checker:$DEFAULT_CF_VERSION")
-            }
-            configure<CheckerFrameworkExtension> {
-                checkers = listOf("org.checkerframework.checker.index.IndexChecker")
-                version = "$testVersion"
-                extraJavacArgs = listOf("-Aversion")
-            }
+        dependencies {
+            checkerFramework("org.checkerframework:checker:$DEFAULT_CF_VERSION")
+        }
+        configure<CheckerFrameworkExtension> {
+            version = "$DEFAULT_CF_VERSION"
+            checkers = listOf("org.checkerframework.checker.index.IndexChecker")
+            version = "$testVersion"
+            extraJavacArgs = listOf("-Aversion")
+        }
       """
             .trimIndent()
     )
@@ -371,6 +382,7 @@ class CfPluginFunctionalTest : AbstractPluginFunctionalTest() {
     buildFile.appendText(
         """
         configure<CheckerFrameworkExtension> {
+            version = "$DEFAULT_CF_VERSION"
             checkers = listOf("org.checkerframework.checker.tainting.TaintingChecker")
             excludeTests = false
             extraJavacArgs = listOf("-Afilenames")
@@ -397,6 +409,7 @@ class CfPluginFunctionalTest : AbstractPluginFunctionalTest() {
     buildFile.appendText(
         """
         configure<CheckerFrameworkExtension> {
+            version = "$DEFAULT_CF_VERSION"
             checkers = listOf("org.checkerframework.checker.tainting.TaintingChecker")
             excludeTests = true
             extraJavacArgs = listOf("-Afilenames")
