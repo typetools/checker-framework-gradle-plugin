@@ -56,7 +56,7 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
     val checkerQualConfiguration =
         project.configurations.register("checkerQual") {
           description =
-              "Checker qual dependencies, will be extended by all source sets' implementation configuration"
+              "Pluggable type-checker qualifier dependencies, will be extended by all source sets' implementation configuration"
           isVisible = false
           isCanBeConsumed = false
           isCanBeResolved = false
@@ -123,7 +123,7 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
       options.forkOptions.jvmArgumentProviders.add(CheckerFrameworkJvmArgumentProvider())
 
       if (cfExtension.checkers.isPresent) {
-        //  If the annotationProcessorPath is null, then annotation processing is disabled, so no
+        // If the annotationProcessorPath is null, then annotation processing is disabled, so no
         // need to add things to the path.
         options.annotationProcessorPath =
             options.annotationProcessorPath?.plus(project.files(cfManifestDir.toPath().toString()))
@@ -165,7 +165,7 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
           // annotations that we need to recognize lombok'd code.
           delombokTask.extensions.add("generated", "generate")
           if (cfExtension.suppressLombokWarnings.getOrElse(false)) {
-            // Also re-add suppress warnings annotations so that we don't get warnings from
+            // Also re-add @SuppressWarnings annotations so that we don't get warnings from
             // generated code.
             delombokTask.extensions.add("suppressWarnings", "generate")
           }
