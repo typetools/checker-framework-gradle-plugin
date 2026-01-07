@@ -14,9 +14,9 @@ abstract class CheckerFrameworkExtension {
   abstract val extraJavacArgs: ListProperty<String>
 
   /**
-   * Which version of the Checker Framework to use.  If set to "local", then use the Checker
-   * Framework at the `$CHECKERFRAMEWORK` environment variable.  If set to "none", then don't use
-   * the Checker Framework.
+   * Which version of the Checker Framework to use. If set to "local", then use the Checker
+   * Framework at the `$CHECKERFRAMEWORK` environment variable. If set to "none", then don't use the
+   * Checker Framework.
    */
   abstract val version: Property<String>
 

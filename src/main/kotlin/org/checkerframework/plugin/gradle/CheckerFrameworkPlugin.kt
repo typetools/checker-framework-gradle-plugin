@@ -20,8 +20,7 @@ import org.gradle.util.GradleVersion
  * A [Plugin] that configures [JavaCompile] tasks to use the
  * [Checker Framework](https://checkerframework.org/).
  */
-class CheckerFrameworkPlugin @Inject constructor() :
-  Plugin<Project> {
+class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
   companion object {
     const val PLUGIN_ID = "org.checkerframework"
     const val CONFIGURATION_NAME = "checkerFramework"
@@ -46,7 +45,7 @@ class CheckerFrameworkPlugin @Inject constructor() :
     val checkerQualConfiguration =
       project.configurations.register("checkerQual") {
         description =
-           "Pluggable type-checker qualifier dependencies, will be extended by all source sets' implementation configuration"
+          "Pluggable type-checker qualifier dependencies, will be extended by all source sets' implementation configuration"
         addDefaultCFDependencies(cfExtension, project, "checker-qual")
       }
 
