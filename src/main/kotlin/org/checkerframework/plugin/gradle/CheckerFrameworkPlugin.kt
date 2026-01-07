@@ -8,7 +8,6 @@ import org.gradle.api.Task
 import org.gradle.api.artifacts.Configuration
 import org.gradle.api.plugins.ExtensionAware
 import org.gradle.api.plugins.JavaBasePlugin
-import org.gradle.api.provider.ProviderFactory
 import org.gradle.api.tasks.SourceSetContainer
 import org.gradle.api.tasks.TaskProvider
 import org.gradle.api.tasks.compile.JavaCompile
@@ -21,7 +20,7 @@ import org.gradle.util.GradleVersion
  * A [Plugin] that configures [JavaCompile] tasks to use the
  * [Checker Framework](https://checkerframework.org/).
  */
-class CheckerFrameworkPlugin @Inject constructor(private val providers: ProviderFactory) :
+class CheckerFrameworkPlugin @Inject constructor() :
   Plugin<Project> {
   companion object {
     const val PLUGIN_ID = "org.checkerframework"
