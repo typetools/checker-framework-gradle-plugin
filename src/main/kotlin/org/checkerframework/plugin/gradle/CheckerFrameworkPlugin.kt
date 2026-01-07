@@ -1,5 +1,6 @@
 package org.checkerframework.plugin.gradle
 
+import java.io.File
 import javax.inject.Inject
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -66,7 +67,7 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
       }
     }
 
-    val cfManifestDir = project.layout.buildDirectory.file("checkerframework").get().asFile
+    val cfManifestDir = project.layout.buildDirectory.dir("checkerframework").get().asFile
 
     project.tasks.register("writeCheckerManifest", WriteCheckerManifestTask::class.java) {
       group = "CheckerFramework"
@@ -84,7 +85,7 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
       if (
         !cfCompileOptions.enabled.getOrElse(true) ||
           cfExtension.skipCheckerFramework.getOrElse(false) ||
-          project.properties.getOrElse("skipCheckerFramework", { false }) != false ||
+          project.findProperty("skipCheckerFramework")?.toString()?.toBoolean() == true ||
           (cfExtension.excludeTests.getOrElse(false) && isTestName(name))
       ) {
         return@configureEach
@@ -104,7 +105,7 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
 
         doFirst {
           val processorArgIndex = options.compilerArgs.indexOf("-processor")
-          if (processorArgIndex != -1) {
+          if (processorArgIndex != -1 && processorArgIndex + 1 < options.compilerArgs.size) {
             // Because the user already passed -processor as a compiler arg, auto discovery will
             // not work, so add the checkers to the list of processors.
             // This can't be done in CheckerFrameworkCompilerArgumentProvider because it modifies
@@ -112,6 +113,10 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
             val oldProcessors = options.compilerArgs.get(processorArgIndex + 1)
             val cfProcessors = cfExtension.checkers.get().joinToString(separator = ",")
             options.compilerArgs.set(processorArgIndex + 1, "$oldProcessors,$cfProcessors")
+          } else if (processorArgIndex != -1) {
+            project.logger.warn(
+              "Found -processor argument without a value; checkers will not be appended"
+            )
           }
           // Must fork for the JVM arguments to be applied.
           options.isFork = true
@@ -155,14 +160,24 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
     project: Project,
     jarName: String,
   ) {
-    isVisible = false
     isCanBeConsumed = false
     isCanBeResolved = false
     defaultDependencies {
       val version = findCfVersion(cfExtension)
       if (version == "local" || project.hasProperty("cfLocal")) {
-        val cfHome = System.getenv("CHECKERFRAMEWORK")
-        add(project.dependencies.create(project.files("${cfHome}/checker/dist/$jarName")))
+        val cfHome =
+          System.getenv("CHECKERFRAMEWORK")
+            ?: throw IllegalStateException(
+              "CHECKERFRAMEWORK environment variable must be set when using local version"
+            )
+        val jarFile = File("$cfHome/checker/dist/$jarName.jar")
+        if (!jarFile.exists()) {
+          throw IllegalStateException(
+            "Could not find $jarName at ${jarFile.absolutePath}. " +
+              "Please ensure the Checker Framework is built."
+          )
+        }
+        add(project.dependencies.create(project.files(jarFile)))
       } else {
         add(project.dependencies.create("org.checkerframework:$jarName:$version"))
       }
@@ -187,7 +202,7 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
     }
   }
 
-  internal class CheckerFrameworkJvmArgumentProvider() : CommandLineArgumentProvider {
+  internal class CheckerFrameworkJvmArgumentProvider : CommandLineArgumentProvider {
     override fun asArguments(): Iterable<String?> {
       return listOf(
         "--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED",

@@ -2,12 +2,12 @@ package org.checkerframework.plugin.gradle
 
 import java.io.File
 import org.gradle.api.DefaultTask
-import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.Optional
-import org.gradle.api.tasks.OutputFile
+import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
 
 /**
@@ -20,7 +20,7 @@ abstract class WriteCheckerManifestTask : DefaultTask() {
 
   @get:Input @get:Optional abstract val incrementalize: Property<Boolean>
 
-  @get:OutputFile abstract val cfBuildDir: RegularFileProperty
+  @get:OutputDirectory abstract val cfBuildDir: DirectoryProperty
 
   @TaskAction
   fun run() {

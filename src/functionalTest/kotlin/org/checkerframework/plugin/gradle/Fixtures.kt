@@ -4,7 +4,6 @@ import java.io.File
 import org.gradle.testkit.runner.BuildResult
 import org.gradle.testkit.runner.GradleRunner
 import org.gradle.util.GradleVersion
-import org.gradle.util.GradleVersion.version
 
 val testJavaHome = System.getProperty("test.java-home", System.getProperty("java.home"))
 val testGradleVersion =
@@ -85,7 +84,7 @@ fun File.writeTaintingFailure() {
 }
 
 fun File.writeResourceLeakTest() {
-  File(this.resolve("src/main/java/test").apply { mkdirs() }, "Failure2Checkers.java").apply {
+  File(this.resolve("src/main/java/test").apply { mkdirs() }, "ResourceLeakTest.java").apply {
     createNewFile()
     writeText(
       """
@@ -93,7 +92,7 @@ fun File.writeResourceLeakTest() {
 
       import org.checkerframework.checker.mustcall.qual.Owning;
 
-      public class Failure2Checkers {
+      public class ResourceLeakTest {
         public static @Owning  java.io.FileWriter log = null;
       }
       """

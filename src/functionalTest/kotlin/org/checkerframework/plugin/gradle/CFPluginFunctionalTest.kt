@@ -176,7 +176,7 @@ class CfPluginFunctionalTest : AbstractPluginFunctionalTest() {
   }
 
   @Test
-  fun `test explict processor`() {
+  fun `test explicit processor`() {
     buildFile.appendText(
       """
       configure<CheckerFrameworkExtension> {

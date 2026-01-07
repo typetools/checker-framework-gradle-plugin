@@ -138,7 +138,7 @@ configuration block:
 
 ### Disabling the Checker Framework for a specific compile task
 
-You can also use a `checkerFramework` block to disable the Checker Framework for specific tasks. 
+You can also use a `checkerFramework` block to disable the Checker Framework for specific tasks.
 This can be useful for skipping the Checker Framework on generated code:
 
 ```build.gradle
@@ -248,7 +248,7 @@ Add following to your `module-info.java`:
 requires org.checkerframework.checker.qual;
 ```
 
-The addition of `requires` is typcially enough.
+The addition of `requires` is typically enough.
 
 If it does not fix your compilation issues, you can additionally add the `checker-qual.jar`
 artifact (which only contains annotations) to the module path:
