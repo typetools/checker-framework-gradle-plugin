@@ -28,27 +28,27 @@ abstract class WriteCheckerManifestTask : DefaultTask() {
     cfBuildDirAsFile.mkdirs()
     // https://checkerframework.org/manual/#checker-auto-discovery
     writeManifestFile(
-        cfBuildDirAsFile,
-        checkers.get(),
-        "META-INF/services/javax.annotation.processing.Processor",
-        "\n",
+      cfBuildDirAsFile,
+      checkers.get(),
+      "META-INF/services/javax.annotation.processing.Processor",
+      "\n",
     )
     if (incrementalize.getOrElse(true)) {
       // https://docs.gradle.org/current/userguide/java_plugin.html#sec:incremental_annotation_processing
       writeManifestFile(
-          cfBuildDirAsFile,
-          checkers.get(),
-          "META-INF/gradle/incremental.annotation.processors",
-          ",isolating\n",
+        cfBuildDirAsFile,
+        checkers.get(),
+        "META-INF/gradle/incremental.annotation.processors",
+        ",isolating\n",
       )
     }
   }
 
   private fun writeManifestFile(
-      cfBuildDir: File,
-      checkers: List<String>,
-      fileName: String,
-      separator: String,
+    cfBuildDir: File,
+    checkers: List<String>,
+    fileName: String,
+    separator: String,
   ) {
     val processorFile = File(cfBuildDir, fileName)
     processorFile.parentFile.mkdirs()

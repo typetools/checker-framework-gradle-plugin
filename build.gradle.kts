@@ -26,14 +26,14 @@ gradlePlugin {
       id = "org.checkerframework"
       displayName = "Checker Framework Gradle Plugin"
       description =
-          "Gradle build logic for pluggable type-checking of Java via the Checker Framework"
+        "Gradle build logic for pluggable type-checking of Java via the Checker Framework"
       implementationClass = "org.checkerframework.plugin.gradle.CheckerFrameworkPlugin"
       tags.addAll(
-          "checkerframework",
-          "checker",
-          "typechecker",
-          "pluggable types",
-          "formal verification",
+        "checkerframework",
+        "checker",
+        "typechecker",
+        "pluggable types",
+        "formal verification",
       )
     }
   }
@@ -72,9 +72,9 @@ testing {
           val testJavaToolchain = project.findProperty("test.java-toolchain")
           testJavaToolchain?.also {
             val launcher =
-                project.javaToolchains.launcherFor {
-                  languageVersion.set(JavaLanguageVersion.of(testJavaToolchain.toString()))
-                }
+              project.javaToolchains.launcherFor {
+                languageVersion.set(JavaLanguageVersion.of(testJavaToolchain.toString()))
+              }
             val metadata = launcher.get().metadata
             systemProperty("test.java-version", metadata.languageVersion.asInt())
             systemProperty("test.java-home", metadata.installationPath.asFile.canonicalPath)
@@ -90,7 +90,6 @@ testing {
 tasks { check { dependsOn(testing.suites) } }
 
 spotless {
-  kotlinGradle { ktfmt().googleStyle().configure { it.setContinuationIndent(4) } }
-
-  kotlin { ktfmt().googleStyle().configure { it.setContinuationIndent(4) } }
+  kotlinGradle { ktfmt().googleStyle() }
+  kotlin { ktfmt().googleStyle() }
 }

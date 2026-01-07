@@ -4,6 +4,7 @@ import javax.inject.Inject
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.Task
+import org.gradle.api.artifacts.Configuration
 import org.gradle.api.plugins.ExtensionAware
 import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.provider.ProviderFactory
@@ -20,7 +21,7 @@ import org.gradle.util.GradleVersion
  * [Checker Framework](https://checkerframework.org/).
  */
 class CheckerFrameworkPlugin @Inject constructor(private val providers: ProviderFactory) :
-    Plugin<Project> {
+  Plugin<Project> {
   companion object {
     const val PLUGIN_ID = "org.checkerframework"
     const val CONFIGURATION_NAME = "checkerFramework"
@@ -33,48 +34,21 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
     }
 
     val cfExtension =
-        project.extensions.create("checkerFramework", CheckerFrameworkExtension::class.java)
+      project.extensions.create("checkerFramework", CheckerFrameworkExtension::class.java)
 
     val cfConfiguration =
-        project.configurations.register(CONFIGURATION_NAME) {
-          description =
-              "Checker Framework dependencies, will be extended by all source sets' annotationProcessor configurations"
-          isVisible = false
-          isCanBeConsumed = false
-          isCanBeResolved = false
-          defaultDependencies {
-            val version = findCfVersion(cfExtension)
-            if (version == "local" || project.hasProperty("cfLocal")) {
-              val cfHome = System.getenv("CHECKERFRAMEWORK")
-              add(project.dependencies.create(project.files("${cfHome}/checker/dist/checker.jar")))
-            } else {
-              add(project.dependencies.create("org.checkerframework:checker:$version"))
-            }
-          }
-        }
+      project.configurations.register(CONFIGURATION_NAME) {
+        description =
+          "Checker Framework dependencies, will be extended by all source sets' annotationProcessor configurations"
+        addDefaultCFDependencies(cfExtension, project, "checker")
+      }
 
     val checkerQualConfiguration =
-        project.configurations.register("checkerQual") {
-          description =
-              "Pluggable type-checker qualifier dependencies, will be extended by all source sets' implementation configuration"
-          isVisible = false
-          isCanBeConsumed = false
-          isCanBeResolved = false
-          defaultDependencies {
-            val version = findCfVersion(cfExtension)
-            if (version == "local" || project.hasProperty("cfLocal")) {
-
-              val cfHome = System.getenv("CHECKERFRAMEWORK")
-              add(
-                  project.dependencies.create(
-                      project.files("${cfHome}/checker/dist/checker-qual.jar")
-                  )
-              )
-            } else {
-              add(project.dependencies.create("org.checkerframework:checker-qual:$version"))
-            }
-          }
-        }
+      project.configurations.register("checkerQual") {
+        description =
+           "Pluggable type-checker qualifier dependencies, will be extended by all source sets' implementation configuration"
+        addDefaultCFDependencies(cfExtension, project, "checker-qual")
+      }
 
     // Add checker.jar to all annotationProcessor configurations and checker-qual.jar to all
     // compileOnly configurations.
@@ -103,15 +77,15 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
 
     project.tasks.withType<JavaCompile>().configureEach {
       val cfCompileOptions =
-          (options as ExtensionAware)
-              .extensions
-              .create("checkerFrameworkCompile", CheckerFrameworkCompileExtension::class.java)
+        (options as ExtensionAware)
+          .extensions
+          .create("checkerFrameworkCompile", CheckerFrameworkCompileExtension::class.java)
 
       if (
-          !cfCompileOptions.enabled.getOrElse(true) ||
-              cfExtension.skipCheckerFramework.getOrElse(false) ||
-              project.properties.getOrElse("skipCheckerFramework", { false }) != false ||
-              (cfExtension.excludeTests.getOrElse(false) && isTestName(name))
+        !cfCompileOptions.enabled.getOrElse(true) ||
+          cfExtension.skipCheckerFramework.getOrElse(false) ||
+          project.properties.getOrElse("skipCheckerFramework", { false }) != false ||
+          (cfExtension.excludeTests.getOrElse(false) && isTestName(name))
       ) {
         return@configureEach
       }
@@ -126,7 +100,7 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
         // If the annotationProcessorPath is null, then annotation processing is disabled, so no
         // need to add things to the path.
         options.annotationProcessorPath =
-            options.annotationProcessorPath?.plus(project.files(cfManifestDir.toPath().toString()))
+          options.annotationProcessorPath?.plus(project.files(cfManifestDir.toPath().toString()))
 
         doFirst {
           val processorArgIndex = options.compilerArgs.indexOf("-processor")
@@ -154,7 +128,7 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
           delombokTaskProvider = project.tasks.named("delombok")
         } else {
           val sourceSetName =
-              compileTaskName.substring("compile".length, compileTaskName.length - "Java".length)
+            compileTaskName.substring("compile".length, compileTaskName.length - "Java".length)
           delombokTaskProvider = project.tasks.named("delombok$sourceSetName")
         }
 
@@ -176,15 +150,34 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
     }
   }
 
+  private fun Configuration.addDefaultCFDependencies(
+    cfExtension: CheckerFrameworkExtension,
+    project: Project,
+    jarName: String,
+  ) {
+    isVisible = false
+    isCanBeConsumed = false
+    isCanBeResolved = false
+    defaultDependencies {
+      val version = findCfVersion(cfExtension)
+      if (version == "local" || project.hasProperty("cfLocal")) {
+        val cfHome = System.getenv("CHECKERFRAMEWORK")
+        add(project.dependencies.create(project.files("${cfHome}/checker/dist/$jarName")))
+      } else {
+        add(project.dependencies.create("org.checkerframework:$jarName:$version"))
+      }
+    }
+  }
+
   private fun findCfVersion(cfOptions: CheckerFrameworkExtension): String =
-      cfOptions.version.getOrElse(DEFAULT_CF_VERSION)
+    cfOptions.version.getOrElse(DEFAULT_CF_VERSION)
 
   private fun isTestName(string: String): Boolean {
     return string.contains("test") || string.contains("Test")
   }
 
   internal class CheckerFrameworkCompilerArgumentProvider(
-      private val cfOptions: CheckerFrameworkExtension
+    private val cfOptions: CheckerFrameworkExtension
   ) : CommandLineArgumentProvider {
     override fun asArguments(): Iterable<String?> {
       if (cfOptions.extraJavacArgs.isPresent) {
@@ -197,16 +190,16 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
   internal class CheckerFrameworkJvmArgumentProvider() : CommandLineArgumentProvider {
     override fun asArguments(): Iterable<String?> {
       return listOf(
-          "--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED",
-          "--add-exports=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED",
-          "--add-exports=jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED",
-          "--add-exports=jdk.compiler/com.sun.tools.javac.main=ALL-UNNAMED",
-          "--add-exports=jdk.compiler/com.sun.tools.javac.model=ALL-UNNAMED",
-          "--add-exports=jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED",
-          "--add-exports=jdk.compiler/com.sun.tools.javac.processing=ALL-UNNAMED",
-          "--add-exports=jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED",
-          "--add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED",
-          "--add-opens=jdk.compiler/com.sun.tools.javac.comp=ALL-UNNAMED",
+        "--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED",
+        "--add-exports=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED",
+        "--add-exports=jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED",
+        "--add-exports=jdk.compiler/com.sun.tools.javac.main=ALL-UNNAMED",
+        "--add-exports=jdk.compiler/com.sun.tools.javac.model=ALL-UNNAMED",
+        "--add-exports=jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED",
+        "--add-exports=jdk.compiler/com.sun.tools.javac.processing=ALL-UNNAMED",
+        "--add-exports=jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED",
+        "--add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED",
+        "--add-opens=jdk.compiler/com.sun.tools.javac.comp=ALL-UNNAMED",
       )
     }
   }

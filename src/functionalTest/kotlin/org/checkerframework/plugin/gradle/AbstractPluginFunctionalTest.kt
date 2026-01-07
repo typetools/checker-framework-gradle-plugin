@@ -20,13 +20,13 @@ abstract class AbstractPluginFunctionalTest {
     }
     settingsFile = testProjectDir.resolve("settings.gradle.kts").apply { createNewFile() }
     buildFile =
-        testProjectDir.resolve("build.gradle.kts").apply {
-          writeText(
-              """
-              import org.checkerframework.plugin.gradle.*
-              """
-                  .trimIndent()
-          )
-        }
+      testProjectDir.resolve("build.gradle.kts").apply {
+        writeText(
+          """
+          import org.checkerframework.plugin.gradle.*
+          """
+            .trimIndent()
+        )
+      }
   }
 }
