@@ -1,19 +1,16 @@
 # Checker Framework Gradle Plugin
 
-[![License](https://img.shields.io/badge/license-apache%202.0-blue.svg)](http://www.apache.org/licenses/LICENSE-2.0)
-![Build Status](https://github.com/kelloggm/checkerframework-gradle-plugin/actions/workflows/gradle.yml/badge.svg)
-
 This plugin configures `JavaCompile` tasks to use the [Checker
 Framework](https://checkerframework.org) for pluggable type-checking.
 
-## Download
+## Apply the plugin
 
 Add the following to your `build.gradle` file:
 
 ```groovy
 plugins {
-    // Checker Framework pluggable type-checking
-    id("org.checkerframework").version("0.6.60")
+  // Checker Framework pluggable type-checking
+  id("org.checkerframework").version("0.6.60")
 }
 ```
 
@@ -58,7 +55,7 @@ For a list of checkers, see the [Checker Framework Manual](https://checkerframew
 ### Providing additional options to the compiler
 
 You can set the `checkerFramework.extraJavacArgs` property in order to pass
-additional options to the compiler when running a typechecker.
+additional options to the compiler when running a pluggable type-checker.
 
 For example, to treat all warnings as errors and to use a stub file:
 
@@ -118,17 +115,17 @@ definitions of the custom qualifiers.
 
 ### Incremental compilation
 
-By default, the plugin assumes that all checkers are "isolating incremental
-annotation processors" according to the [Gradle
-terminology](https://docs.gradle.org/current/userguide/java_plugin.html#sec:incremental_annotation_processing).
-This assumption speeds up builds by enabling incremental compilation, but is
-unsafe: Gradle's documentation warns that annotation processors that use
-internal Javac APIs may crash, because Gradle wraps some of those APIs. The
-Checker Framework does use internal Javac APIs, so you might encounter such a
-crash, which would appear as a `ClassCastException` referencing some internal
-Javac class. If you encounter such a crash, you can disable incremental
-compilation in your build using the following code in your `checkerFramework`
-configuration block:
+By default, the plugin assumes that all checkers are ["isolating incremental
+annotation
+processors"](https://docs.gradle.org/current/userguide/java_plugin.html#sec:incremental_annotation_processing).
+This assumption speeds up builds by enabling incremental compilation.
+
+Gradle's documentation warns that incremental compilation with the Checker
+Framework plugin (or any other plugin that uses internal Javac APIs) may crash,
+because Gradle wraps some of those APIs.  Such a crash would appear as a
+`ClassCastException` referencing some internal Javac class. If you encounter
+such a crash, you can disable incremental compilation in your build using the
+following code in your `checkerFramework` configuration block:
 
 ```groovy
   checkerFramework {
@@ -138,7 +135,7 @@ configuration block:
 
 ### Disabling the Checker Framework for a specific compile task
 
-You can also use a `checkerFramework` block to disable the Checker Framework for specific tasks. 
+You can disable the Checker Framework for specific tasks.
 This can be useful for skipping the Checker Framework on generated code:
 
 ```build.gradle
@@ -185,12 +182,12 @@ Also see the `excludeTests` configuration variable, described below.
   ```
 
   The check for test targets is entirely syntactic: this option will not apply
-  the checkers to any task whose name includes "test", ignoring case.
+  the checkers to any task whose name includes "test" or "Test".
 
 * If you encounter errors of the form `zip file name too long` when configuring your
-Gradle project, you can use the following code to skip this plugin's version check,
-which reads the manifest file of the version of the Checker Framework you are actually
-using:
+  Gradle project, you can use the following code to skip this plugin's version check,
+  which reads the manifest file of the version of the Checker Framework you are actually
+  using:
 
   ```groovy
   checkerFramework {
@@ -208,11 +205,11 @@ project).  Here are two approaches.
 All Checker Framework configuration (the `checkerFramework` block and any
 `dependencies`) remains in the top-level `build.gradle` file.  Put it in a
 `subprojects` block (or an `allprojects` block in the unlikely case that the
-top-level project is a Java project).  For example:
+top-level project is a Java project).  For example, in Groovy syntax:
 
 ```groovy
 plugins {
-  id "org.checkerframework" version "0.6.60" apply false
+  id("org.checkerframework").version("0.6.60")
 }
 
 subprojects { subproject ->
@@ -291,34 +288,22 @@ warnings in the code that Lombok generates.
 
 ## Using a locally-built plugin
 
-You can build the plugin locally rather than downloading it from Maven Central.
+To use a locally-modified version of the plugin:
 
-To build the plugin from source, run `./gradlew build`.
+1. Publish the plugin to your local Maven repository:
 
-If you want to use a locally-built version of the plugin, you can publish the
-plugin to your local Maven repository by running `./gradlew
-publishToMavenLocal`. Then, add the following to the `settings.gradle` file in
-the Gradle project that you want to use the plugin:
+   ```sh
+   ./gradlew publishToMavenLocal
+   ```
 
-```gradle
-pluginManagement {
-    repositories {
-        mavenLocal()
-        gradlePluginPortal()
-    }
-}
-```
+2. Add the following to the `settings.gradle` file in
+   the Gradle project that you want to use the plugin:
 
-## License
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-   <http://www.apache.org/licenses/LICENSE-2.0>
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+   ```gradle
+   pluginManagement {
+       repositories {
+           mavenLocal()
+           gradlePluginPortal()
+       }
+   }
+   ```

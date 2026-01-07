@@ -11,9 +11,9 @@ import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.TaskAction
 
 /**
- *         Create META-INF/services/javax.annotation.processing.Processor and
- *         META-INF/gradle/incremental.annotation.processors
- *         files so that processor autodiscovery works.
+ * Create META-INF/services/javax.annotation.processing.Processor and
+ * META-INF/gradle/incremental.annotation.processors
+ * files so that processor autodiscovery works.
  */
 abstract class WriteCheckerManifestTask : DefaultTask() {
   @get:Input abstract val checkers: ListProperty<String>
