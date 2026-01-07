@@ -4,6 +4,7 @@ import javax.inject.Inject
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.Task
+import org.gradle.api.artifacts.Configuration
 import org.gradle.api.plugins.ExtensionAware
 import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.provider.ProviderFactory
@@ -39,39 +40,14 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
       project.configurations.register(CONFIGURATION_NAME) {
         description =
           "Checker Framework dependencies, will be extended by all source sets' annotationProcessor configurations"
-        isVisible = false
-        isCanBeConsumed = false
-        isCanBeResolved = false
-        defaultDependencies {
-          val version = findCfVersion(cfExtension)
-          if (version == "local" || project.hasProperty("cfLocal")) {
-            val cfHome = System.getenv("CHECKERFRAMEWORK")
-            add(project.dependencies.create(project.files("${cfHome}/checker/dist/checker.jar")))
-          } else {
-            add(project.dependencies.create("org.checkerframework:checker:$version"))
-          }
-        }
+        addDefaultCFDependencies(cfExtension, project, "checker")
       }
 
     val checkerQualConfiguration =
       project.configurations.register("checkerQual") {
         description =
           "Checker qual dependencies, will be extended by all source sets' implementation configuration"
-        isVisible = false
-        isCanBeConsumed = false
-        isCanBeResolved = false
-        defaultDependencies {
-          val version = findCfVersion(cfExtension)
-          if (version == "local" || project.hasProperty("cfLocal")) {
-
-            val cfHome = System.getenv("CHECKERFRAMEWORK")
-            add(
-              project.dependencies.create(project.files("${cfHome}/checker/dist/checker-qual.jar"))
-            )
-          } else {
-            add(project.dependencies.create("org.checkerframework:checker-qual:$version"))
-          }
-        }
+        addDefaultCFDependencies(cfExtension, project, "checker-qual")
       }
 
     // Add checker.jar to all annotationProcessor configurations and checker-qual.jar to all
@@ -170,6 +146,25 @@ class CheckerFrameworkPlugin @Inject constructor(private val providers: Provider
           // Set the sources to the delomboked code.
           source = delombokTask.outputs.files.asFileTree
         }
+      }
+    }
+  }
+
+  private fun Configuration.addDefaultCFDependencies(
+    cfExtension: CheckerFrameworkExtension,
+    project: Project,
+    jarName: String,
+  ) {
+    isVisible = false
+    isCanBeConsumed = false
+    isCanBeResolved = false
+    defaultDependencies {
+      val version = findCfVersion(cfExtension)
+      if (version == "local" || project.hasProperty("cfLocal")) {
+        val cfHome = System.getenv("CHECKERFRAMEWORK")
+        add(project.dependencies.create(project.files("${cfHome}/checker/dist/$jarName")))
+      } else {
+        add(project.dependencies.create("org.checkerframework:$jarName:$version"))
       }
     }
   }
