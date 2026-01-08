@@ -55,7 +55,8 @@ abstract class WriteCheckerManifestTask : DefaultTask() {
   ) {
     val processorFile = File(cfBuildDir, fileName)
     processorFile.parentFile.mkdirs()
-    processorFile.createNewFile()
+    // Overwrites the contents of fileName if it exists or creates a new file if fileName does not
+    // exist.
     processorFile.writeText(checkers.joinToString(separator = separator, postfix = separator))
   }
 }
