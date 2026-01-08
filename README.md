@@ -34,7 +34,7 @@ checkerFramework {
 ```
 
 The special value *`"local"`* means to use a locally-built version of the Checker
-Framework, found at environment varibale `$CHECKERFRAMEWORK`.
+Framework, found at environment variable `$CHECKERFRAMEWORK`.
 
 The special value *`"none"`* means to not use the Checker Framework.
 
