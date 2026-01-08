@@ -39,7 +39,7 @@ Framework, found at environment variable `$CHECKERFRAMEWORK`.
 The special value *`"skip"`* means to not use the Checker Framework.
 
 You can override the Checker Framework version in your `build.gradle` by running
-Gradle with the command-line argument `-PcfLocal=...`, where "..." is replaced
+Gradle with the command-line argument `-PcfVersion=...`, where "..." is replaced
 by a version number (or "local" or "none").
 
 #### Checker Framework jar files
