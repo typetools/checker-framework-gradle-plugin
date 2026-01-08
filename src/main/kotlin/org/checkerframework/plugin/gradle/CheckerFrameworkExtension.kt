@@ -10,13 +10,13 @@ abstract class CheckerFrameworkExtension {
    */
   abstract val checkers: ListProperty<String>
 
-  /** A list of extra options to pass directly to javac when running typecheckers. */
+  /** A list of extra command-line options to pass directly to javac when running typecheckers. */
   abstract val extraJavacArgs: ListProperty<String>
 
   /**
-   * Which version of the Checker Framework to use.  If set to "local", then use the Checker
-   * Framework at the `$CHECKERFRAMEWORK` environment variable.  If set to "none", then don't use
-   * the Checker Framework.
+   * Which version of the Checker Framework to use. If set to "local", then use the Checker
+   * Framework at the `$CHECKERFRAMEWORK` environment variable. If set to "none", then don't use the
+   * Checker Framework.
    */
   abstract val version: Property<String>
 
@@ -34,7 +34,7 @@ abstract class CheckerFrameworkExtension {
    * If true, enable automatic incremental compilation. By default, the Checker Framework assumes
    * that all checkers are incremental with type "isolating". Gradle's documentation suggests that
    * annotation processors that interact with Javac APIs might crash because Gradle wraps some Javac
-   * APIs, so if you encounter such a crash you can disable incremental compilation using this flag.
+   * APIs. If you encounter such a crash, you can disable incremental compilation using this flag.
    * (Defaults to true.)
    */
   abstract val incrementalize: Property<Boolean>
