@@ -40,7 +40,7 @@ The same example, using Kotlin syntax in a `build.gradle.kts` file:
 
 ```kotlin
 // In Kotlin, you need to import CheckerFrameworkExtension explicitly:
-import org.checkerframework.gradle.plugin.CheckerFrameworkExtension
+import org.checkerframework.plugin.gradle.CheckerFrameworkExtension
 
 configure<CheckerFrameworkExtension> {
     checkers = listOf(
@@ -84,7 +84,7 @@ Framework version 3.52.0, then you should add the following text to the Checker 
   version = "3.52.0"
 ```
 
-You may also set the version to `"local"` which will use a locally-built version of the Checker Framework specified by the `CHECKERFRAMEWORK`
+You may also set the version to `"local"` which will use a locally-built version of the Checker Framework specified by the `CHECKERFRAMEWORK` environment variable.
 
 ```groovy
   version = "local"
@@ -93,6 +93,7 @@ You may also set the version to `"local"` which will use a locally-built version
 Or you can run a Gradle task with and pass `"-PcfLocal"` so that the local version will be used for that task.
 
 You can also directly specify which checker and checker-qual jars to use:
+
 ```groovy
 ext {
     versions = [

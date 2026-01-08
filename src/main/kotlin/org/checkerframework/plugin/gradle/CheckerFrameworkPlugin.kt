@@ -126,14 +126,14 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
       // Handle Lombok
       project.pluginManager.withPlugin("io.freefair.lombok") {
         // Find the delombok task that delomboks the code for this JavaCompile task.
-        var delombokTaskProvider: TaskProvider<Task>
-        if (compileTaskName == "compileJava") {
-          delombokTaskProvider = project.tasks.named("delombok")
-        } else {
-          val sourceSetName =
-            compileTaskName.substring("compile".length, compileTaskName.length - "Java".length)
-          delombokTaskProvider = project.tasks.named("delombok$sourceSetName")
-        }
+        val delombokTaskProvider: TaskProvider<Task> =
+          if (compileTaskName == "compileJava") {
+            project.tasks.named("delombok")
+          } else {
+            val sourceSetName =
+              compileTaskName.substring("compile".length, compileTaskName.length - "Java".length)
+            project.tasks.named("delombok$sourceSetName")
+          }
 
         if (delombokTaskProvider.isPresent) {
           val delombokTask = delombokTaskProvider.get()
@@ -196,7 +196,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
       if (cfOptions.extraJavacArgs.isPresent) {
         return cfOptions.extraJavacArgs.get()
       }
-      return listOf()
+      return emptyList()
     }
   }
 
