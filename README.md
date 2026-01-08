@@ -36,7 +36,7 @@ checkerFramework {
 The special value *`"local"`* means to use a locally-built version of the Checker
 Framework, found at environment variable `$CHECKERFRAMEWORK`.
 
-The special value *`"skip"`* means to not use the Checker Framework.
+The special value *`"disable"`* means to not use the Checker Framework.
 
 You can override the Checker Framework version in your `build.gradle` by running
 Gradle with the command-line argument `-PcfVersion=...`, where "..." is replaced
@@ -45,11 +45,11 @@ by a version number (or "local" or "none").
 #### Checker Framework jar files
 
 Alternately, you can directly specify which checker and checker-qual jars to
-use. You must also set the Checker Framework version to the special value *`"none"`*:
+use. You must also set the Checker Framework version to the special value *`"dependencies"`*:
 
 ```groovy
 checkerFramework {
-  version = "none"
+  version = "dependencies"
 }
 
 ext {
