@@ -29,7 +29,22 @@ Checker Framework to use.  For example:
 
 ```groovy
 checkerFramework {
-  version = "3.52.0"
+  version = libs.checker.get().version
+}
+```
+
+If you add a checker entry to the Gradle version catalog in `gradle/libs.versions.toml`.
+
+```toml
+[libraries]
+checker = "org.checkerframework:checker:3.53.0"
+```
+
+Or you could speficy the version number directly:
+
+```groovy
+checkerFramework {
+  version = "3.35.0"
 }
 ```
 
@@ -40,7 +55,7 @@ The special value *`"disable"`* means to not use the Checker Framework.
 
 You can override the Checker Framework version in your `build.gradle` by running
 Gradle with the command-line argument `-PcfVersion=...`, where "..." is replaced
-by a version number (or "local" or "none").
+by a version number (or "local" or "disable").
 
 #### Checker Framework jar files
 

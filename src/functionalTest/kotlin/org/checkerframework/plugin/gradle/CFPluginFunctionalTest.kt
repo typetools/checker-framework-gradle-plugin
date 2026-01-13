@@ -96,6 +96,29 @@ class CfPluginFunctionalTest : AbstractPluginFunctionalTest() {
   }
 
   @Test
+  fun `test disable with -PcfVersion=disable`() {
+    buildFile.appendText(
+      """
+        configure<CheckerFrameworkExtension> {
+            version = "$DEFAULT_CF_VERSION"
+            checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+            extraJavacArgs = listOf("-Aversion")
+        }
+        """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgs("compileJava", "-PcfVersion=disable")
+
+    // then
+    assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(result.output).doesNotContain("Note: Checker Framework $DEFAULT_CF_VERSION")
+  }
+
+  @Test
   fun `test checker options`() {
     buildFile.appendText(
       """
