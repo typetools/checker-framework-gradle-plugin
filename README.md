@@ -25,33 +25,35 @@ or `java-library` plugin for non-Android builds).
 
 You must specify which
 [version](https://github.com/typetools/checker-framework/releases) of the
-Checker Framework to use.  For example:
+Checker Framework to use.
 
-```groovy
-checkerFramework {
-  version = libs.checker.get().version
-}
-```
+* The recommended way is to modify two files.  Add this to `build.gradle`:
 
-If you add a checker entry to the Gradle version catalog in `gradle/libs.versions.toml`.
+  ```groovy
+  checkerFramework {
+    version = libs.checker.get().version
+  }
+  ```
 
-```toml
-[libraries]
-checker = "org.checkerframework:checker:3.53.0"
-```
+  and add this to `gradle/libs.versions.toml`.
 
-Or you could speficy the version number directly:
+  ```toml
+  [libraries]
+  checker = "org.checkerframework:checker:3.53.0"
+  ```
 
-```groovy
-checkerFramework {
-  version = "3.35.0"
-}
-```
+* Alternately, you can edit just one file.  Add this to `build.gradle`:
 
-The special value *`"local"`* means to use a locally-built version of the Checker
+  ```groovy
+  checkerFramework {
+    version = "3.35.0"
+  }
+  ```
+
+The special value "local" means to use a locally-built version of the Checker
 Framework, found at environment variable `$CHECKERFRAMEWORK`.
 
-The special value *`"disable"`* means to not use the Checker Framework.
+The special value "disable" means to not use the Checker Framework.
 
 You can override the Checker Framework version in your `build.gradle` by running
 Gradle with the command-line argument `-PcfVersion=...`, where "..." is replaced
