@@ -46,7 +46,7 @@ Checker Framework to use.
 
   ```groovy
   checkerFramework {
-    version = "3.35.0"
+    version = "3.53.0"
   }
   ```
 
@@ -55,9 +55,8 @@ Framework, found at environment variable `$CHECKERFRAMEWORK`.
 
 The special value "disable" means to not use the Checker Framework.
 
-You can override the Checker Framework version in your `build.gradle` by running
-Gradle with the command-line argument `-PcfVersion=...`, where "..." is replaced
-by a version number (or "local" or "disable").
+The command-line argument `-PcfVersion=...` (where "..." is a version number,
+"local", or "disable"), overrides settings in gradle buildfiles.
 
 #### Checker Framework jar files
 
