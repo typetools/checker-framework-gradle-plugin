@@ -188,7 +188,8 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
     }
 
     if (project.hasProperty("cfVersion")) {
-      return project.properties.get("cfVersion") as String
+      return project.properties["cfVersion"]?.toString()
+        ?: throw IllegalStateException("cfVersion property is set but has a null value")
     }
     return cfExtension.version.get()
   }

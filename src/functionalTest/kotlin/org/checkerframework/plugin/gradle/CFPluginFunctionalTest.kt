@@ -96,29 +96,6 @@ class CfPluginFunctionalTest : AbstractPluginFunctionalTest() {
   }
 
   @Test
-  fun `test disable with -PcfVersion=disable`() {
-    buildFile.appendText(
-      """
-        configure<CheckerFrameworkExtension> {
-            version = "$TEST_CF_VERSION"
-            checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
-            extraJavacArgs = listOf("-Aversion")
-        }
-        """
-        .trimIndent()
-    )
-    // given
-    testProjectDir.writeEmptyClass()
-
-    // when
-    val result = testProjectDir.buildWithArgs("compileJava", "-PcfVersion=disable")
-
-    // then
-    assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
-    assertThat(result.output).doesNotContain("Note: Checker Framework $TEST_CF_VERSION")
-  }
-
-  @Test
   fun `test checker options`() {
     buildFile.appendText(
       """
@@ -267,20 +244,19 @@ class CfPluginFunctionalTest : AbstractPluginFunctionalTest() {
   fun `test version local option`() {
     buildFile.appendText(
       """
-        configure<CheckerFrameworkExtension> {
-            version = "$TEST_CF_VERSION"
-            checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
-            version = "local"
-            extraJavacArgs = listOf("-Aversion")
-        }
-        tasks.register("printCompileClasspath") {
-            doLast {
-                println("Compile Classpath:")
-                sourceSets.main.get().compileClasspath.forEach { file ->
-                    println(file.absolutePath)
-                }
-            }
-        }
+      configure<CheckerFrameworkExtension> {
+          checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+          version = "local"
+          extraJavacArgs = listOf("-Aversion")
+      }
+      tasks.register("printCompileClasspath") {
+          doLast {
+              println("Compile Classpath:")
+              sourceSets.main.get().compileClasspath.forEach { file ->
+                  println(file.absolutePath)
+              }
+          }
+      }
 
       """
         .trimIndent()
@@ -322,12 +298,11 @@ class CfPluginFunctionalTest : AbstractPluginFunctionalTest() {
     testProjectDir.writeEmptyClass()
 
     // when
-    val result = testProjectDir.buildWithArgs("compileJava", "-cfVersion=local")
+    val result = testProjectDir.buildWithArgs("compileJava", "-PcfVersion=local")
 
     // then
     assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
-    //    assertThat(result.output).contains("Note: Checker Framework
-    // $DEFAULT_CF_VERSION_FOR_TESTING")
+    assertThat(result.output).doesNotContain("Note: Checker Framework $TEST_CF_VERSION")
 
     assertThat(result.output).contains("checker-qual.jar")
   }
