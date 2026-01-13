@@ -141,11 +141,6 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
           // The lombok plugin's default formatting is pretty-printing, without the @Generated
           // annotations that we need to recognize lombok'd code.
           delombokTask.extensions.add("generated", "generate")
-          if (cfExtension.suppressLombokWarnings.getOrElse(false)) {
-            // Also re-add @SuppressWarnings annotations so that we don't get warnings from
-            // generated code.
-            delombokTask.extensions.add("suppressWarnings", "generate")
-          }
           // Set the sources to the delomboked code.
           source = delombokTask.outputs.files.asFileTree
         }
