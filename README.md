@@ -275,13 +275,11 @@ lombok.addLombokGeneratedAnnotation = true
 ```
 
 By default, Lombok suppresses all warnings in the code it generates. If you
-want to typecheck the code that Lombok generates, use the `suppressLombokWarnings`
-configuration key:
+want to typecheck the code that Lombok generates, set the `addSuppressWarnings`
+to false:
 
-```gradle
-checkerFramework {
-  suppressLombokWarnings = false
-}
+```config
+lombok.addSuppressWarnings = false
 ```
 
 Note that doing so will cause *all* tools (including Javac itself) to begin issuing
