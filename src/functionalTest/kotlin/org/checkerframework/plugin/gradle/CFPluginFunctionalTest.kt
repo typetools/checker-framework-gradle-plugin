@@ -50,7 +50,7 @@ class CfPluginFunctionalTest : AbstractPluginFunctionalTest() {
   }
 
   @Test
-  fun `test skipCheckerFramework property`() {
+  fun `test -PcfVersion=disable `() {
     buildFile.appendText(
       """
         configure<CheckerFrameworkExtension> {
@@ -73,7 +73,7 @@ class CfPluginFunctionalTest : AbstractPluginFunctionalTest() {
   }
 
   @Test
-  fun `test skipCheckerFramework configure`() {
+  fun `test disable configure`() {
     buildFile.appendText(
       """
       configure<CheckerFrameworkExtension> {
@@ -239,43 +239,6 @@ class CfPluginFunctionalTest : AbstractPluginFunctionalTest() {
     assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
   }
 
-  @Test
-  fun `test version option`() {
-    val testVersion = "3.43.0"
-    buildFile.appendText(
-      """
-        configure<CheckerFrameworkExtension> {
-            version = "$DEFAULT_CF_VERSION"
-            checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
-            version = "$testVersion"
-            extraJavacArgs = listOf("-Aversion")
-        }
-        tasks.register("printCompileClasspath") {
-            doLast {
-                println("Compile Classpath:")
-                sourceSets.main.get().compileClasspath.forEach { file ->
-                    println(file.absolutePath)
-                }
-            }
-        }
-            
-      """
-        .trimIndent()
-    )
-    // given
-    testProjectDir.writeEmptyClass()
-
-    // when
-    val result = testProjectDir.buildWithArgs("compileJava")
-
-    // then
-    assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
-    assertThat(result.output).contains("Note: Checker Framework $testVersion")
-
-    val result2 = testProjectDir.buildWithArgs(":printCompileClasspath")
-    assertThat(result2.output).contains("checker-qual-$testVersion.jar")
-  }
-
   @Disabled("Need to install a Checker Framework for CI.")
   @Test
   fun `test version local option`() {
@@ -346,6 +309,58 @@ class CfPluginFunctionalTest : AbstractPluginFunctionalTest() {
   }
 
   @Test
+  fun `test version=dependencies`() {
+    buildFile.appendText(
+      """
+        dependencies {
+            checkerFramework("org.checkerframework:checker:$DEFAULT_CF_VERSION")
+            checkerQual("org.checkerframework:checker-qual:$DEFAULT_CF_VERSION")
+        }
+        configure<CheckerFrameworkExtension> {
+            checkers = listOf("org.checkerframework.checker.index.IndexChecker")
+            version = "dependencies"
+            extraJavacArgs = listOf("-Aversion")
+        }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgs("compileJava")
+
+    // then
+
+    assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(result.output).contains("Note: Checker Framework $DEFAULT_CF_VERSION")
+  }
+
+  @Test
+  fun `test missing version`() {
+    buildFile.appendText(
+      """
+        dependencies {
+            checkerFramework("org.checkerframework:checker:$DEFAULT_CF_VERSION")
+        }
+        configure<CheckerFrameworkExtension> {
+            checkers = listOf("org.checkerframework.checker.index.IndexChecker")
+            extraJavacArgs = listOf("-Aversion")
+        }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgsAndFail("compileJava")
+
+    // then
+    assertThat(result.output).contains("Checker Framework version must be set.")
+  }
+
+  @Test
   fun `test checkerFramework configuration`() {
     // This tests that the version of the Checker Framework in the checker framework configuration
     // is used instead of the version in 'version'.
@@ -356,7 +371,6 @@ class CfPluginFunctionalTest : AbstractPluginFunctionalTest() {
             checkerFramework("org.checkerframework:checker:$DEFAULT_CF_VERSION")
         }
         configure<CheckerFrameworkExtension> {
-            version = "$DEFAULT_CF_VERSION"
             checkers = listOf("org.checkerframework.checker.index.IndexChecker")
             version = "$testVersion"
             extraJavacArgs = listOf("-Aversion")
