@@ -50,12 +50,12 @@ Checker Framework to use.
   }
   ```
 
-The special value "local" means to use a locally-built version of the Checker
+The special value **"local"** means to use a locally-built version of the Checker
 Framework, found at environment variable `$CHECKERFRAMEWORK`.
 
-The special value "disable" means to not use the Checker Framework.
+The special value **"disable"** means to not use the Checker Framework.
 
-The command-line argument `-PcfVersion=...` (where "..." is a version number,
+The command-line argument **`-PcfVersion=...`** (where "..." is a version number,
 "local", or "disable"), overrides settings in gradle buildfiles.
 
 #### Checker Framework jar files
