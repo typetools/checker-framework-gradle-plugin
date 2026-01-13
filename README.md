@@ -61,7 +61,8 @@ The command-line argument **`-PcfVersion=...`** (where "..." is a version number
 #### Checker Framework jar files
 
 Alternately, you can directly specify which checker and checker-qual jars to
-use. You must also set the Checker Framework version to the special value *`"dependencies"`*:
+use. You must also set the Checker Framework version to the special value
+**`"dependencies"`**.  Put the following in your `build.gradle` file:
 
 ```groovy
 checkerFramework {
