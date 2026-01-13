@@ -168,8 +168,6 @@ following code in your `checkerFramework` configuration block:
 You can disable the Checker Framework for specific tasks.
 This can be useful for skipping the Checker Framework on generated code:
 
-[comment]: # (Can the `enabled` field setting be eliminated in favor of `version = "none"`?)
-
 ```build.gradle
 tasks.withType(JavaCompile).configureEach {
   // Don't run the checker on generated code.
@@ -194,11 +192,11 @@ Also see the `excludeTests` configuration variable, described below.
 
   ```groovy
   checkerFramework {
-    version = "none"
+    version = "disable"
   }
   ```
 
-  From the command line, add `-PcfVersion=none` to your gradle invocation.
+  From the command line, add `-PcfVersion=disable` to your gradle invocation.
 
 * By default, the plugin applies the selected checkers to all `JavaCompile` targets,
   including test targets such as `testCompileJava`.
