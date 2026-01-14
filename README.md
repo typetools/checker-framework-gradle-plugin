@@ -21,7 +21,67 @@ or `java-library` plugin for non-Android builds).
 
 ## Configuration
 
-### Configuring which checkers to use
+### The Checker Framework version
+
+You must specify which
+[version](https://github.com/typetools/checker-framework/releases) of the
+Checker Framework to use.
+
+* The recommended way is to modify two files.  Add this to `build.gradle`:
+
+  ```groovy
+  checkerFramework {
+    version = libs.checker.get().version
+  }
+  ```
+
+  and add this to `gradle/libs.versions.toml`:
+
+  ```toml
+  [libraries]
+  checker = "org.checkerframework:checker:3.53.0"
+  ```
+
+* Alternately, you can edit just one file.  Add this to `build.gradle`:
+
+  ```groovy
+  checkerFramework {
+    version = "3.53.0"
+  }
+  ```
+
+The special value **"local"** means to use a locally-built version of the Checker
+Framework, found at environment variable `$CHECKERFRAMEWORK`.
+
+The special value **"disable"** means to not use the Checker Framework.
+
+The command-line argument **`-PcfVersion=...`** (where "..." is a version number,
+"local", or "disable") overrides settings in gradle buildfiles.
+
+#### Checker Framework jar files
+
+Alternately, you can directly specify which checker and checker-qual jars to
+use. You must also set the Checker Framework version to the special value
+**`"dependencies"`**.  Put the following in your `build.gradle` file:
+
+```groovy
+checkerFramework {
+  version = "dependencies"
+}
+
+ext {
+    versions = [
+        eisopVersion: "3.42.0-eisop1",
+    ]
+}
+
+dependencies {
+    checkerQual("io.github.eisop:checker-qual:${versions.eisopVersion}")
+    checkerFramework("io.github.eisop:checker:${versions.eisopVersion}")
+}
+```
+
+### Which checkers to run
 
 The `checkerFramework.checkers` property lists which checkers will be run.
 
@@ -52,6 +112,21 @@ configure<CheckerFrameworkExtension> {
 
 For a list of checkers, see the [Checker Framework Manual](https://checkerframework.org/manual/#introduction).
 
+#### Checker dependencies
+
+If a checker you are running has any dependencies, use a `checkerFramework` dependency:
+
+```groovy
+dependencies {
+    checkerFramework("...")
+}
+```
+
+For example, if you are using the
+[Subtyping Checker](https://checkerframework.org/manual/#subtyping-checker) with
+custom type qualifiers, you should add a `checkerFramework` dependency referring
+to the definitions of the custom qualifiers.
+
 ### Providing additional options to the compiler
 
 You can set the `checkerFramework.extraJavacArgs` property in order to pass
@@ -67,52 +142,6 @@ checkerFramework {
   ]
 }
 ```
-
-### Specifying a Checker Framework version
-
-Version 0.6.60 of this plugin uses Checker Framework version 3.51.1 by default.
-Anytime you upgrade to a newer version of this plugin,
-it might use a different version of the Checker Framework.
-
-You can use a Checker Framework
-[version](https://github.com/typetools/checker-framework/releases) that is
-different from this plugin's default.  For example, if you want to use Checker
-Framework version 3.52.0, then you should add the following text to the Checker Framework configuration block
-`build.gradle`, after `apply plugin: "org.checkerframework"`:
-
-```groovy
-  version = "3.52.0"
-```
-
-You may also set the version to `"local"` which will use a locally-built version of the Checker Framework specified by the `CHECKERFRAMEWORK` environment variable.
-
-```groovy
-  version = "local"
-```
-
-Or you can run a Gradle task with and pass `"-PcfLocal"` so that the local version will be used for that task.
-
-You can also directly specify which checker and checker-qual jars to use:
-
-```groovy
-ext {
-    versions = [
-        eisopVersion: "3.42.0-eisop1",
-    ]
-}
-
-dependencies {
-    checkerQual("io.github.eisop:checker-qual:${versions.eisopVersion}")
-    checkerFramework("io.github.eisop:checker:${versions.eisopVersion}")
-}
-```
-
-You should also use a `checkerFramework` dependency for anything needed by a
-checker you are running. For example, if you are using the [Subtyping
-Checker](https://checkerframework.org/manual/#subtyping-checker) with custom
-type qualifiers, you should add a `checkerFramework` dependency referring to the
-definitions of the custom qualifiers.
-
 
 ### Incremental compilation
 
@@ -163,13 +192,11 @@ Also see the `excludeTests` configuration variable, described below.
 
   ```groovy
   checkerFramework {
-    skipCheckerFramework = true
+    version = "disable"
   }
   ```
 
-  From the command line, add `-PskipCheckerFramework` to your gradle invocation.
-  This property can also take an argument:
-  anything other than `false` results in the Checker Framework being skipped.
+  From the command line, add `-PcfVersion=disable` to your gradle invocation.
 
 * By default, the plugin applies the selected checkers to all `JavaCompile` targets,
   including test targets such as `testCompileJava`.
@@ -182,7 +209,7 @@ Also see the `excludeTests` configuration variable, described below.
   }
   ```
 
-  The check for test targets is entirely syntactic: this option will not apply
+  The check for test targets is purely syntactic: this option will not apply
   the checkers to any task whose name includes "test" or "Test".
 
 * If you encounter errors of the form `zip file name too long` when configuring your
@@ -218,7 +245,7 @@ subprojects { subproject ->
 
   checkerFramework {
     checkers = ["org.checkerframework.checker.index.IndexChecker"]
-    version = "3.52.2"
+    version = "3.53.0"
   }
 }
 ```

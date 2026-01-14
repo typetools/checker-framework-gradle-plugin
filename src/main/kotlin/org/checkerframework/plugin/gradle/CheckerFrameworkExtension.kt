@@ -31,7 +31,4 @@ abstract class CheckerFrameworkExtension {
    * (Defaults to true.)
    */
   abstract val incrementalize: Property<Boolean>
-
-  /** Disables the Checker Framework. */
-  abstract val skipCheckerFramework: Property<Boolean>
 }

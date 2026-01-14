@@ -24,7 +24,6 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
   companion object {
     const val PLUGIN_ID = "org.checkerframework"
     const val CONFIGURATION_NAME = "checkerFramework"
-    const val DEFAULT_CF_VERSION = "3.52.1"
   }
 
   override fun apply(project: Project) {
@@ -81,9 +80,8 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
           .create("checkerFrameworkCompile", CheckerFrameworkCompileExtension::class.java)
 
       if (
-        !cfCompileOptions.enabled.getOrElse(true) ||
-          cfExtension.skipCheckerFramework.getOrElse(false) ||
-          project.findProperty("skipCheckerFramework")?.toString()?.toBoolean() == true ||
+        getCFVersion(cfExtension, project) == "disable" ||
+          !cfCompileOptions.enabled.getOrElse(true) ||
           (cfExtension.excludeTests.getOrElse(false) && isTestName(name))
       ) {
         return@configureEach
@@ -156,8 +154,8 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
     isCanBeConsumed = false
     isCanBeResolved = false
     defaultDependencies {
-      val version = findCfVersion(cfExtension)
-      if (version == "local" || project.hasProperty("cfLocal")) {
+      val version = getCFVersion(cfExtension, project)
+      if (version == "local") {
         val cfHome =
           System.getenv("CHECKERFRAMEWORK")
             ?: throw IllegalStateException(
@@ -171,14 +169,25 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
           )
         }
         add(project.dependencies.create(project.files(jarFile)))
+      } else if (version == "dependencies" || version == "disable") {
+        // Don't add dependencies.
       } else {
         add(project.dependencies.create("org.checkerframework:$jarName:$version"))
       }
     }
   }
 
-  private fun findCfVersion(cfOptions: CheckerFrameworkExtension): String =
-    cfOptions.version.getOrElse(DEFAULT_CF_VERSION)
+  private fun getCFVersion(cfExtension: CheckerFrameworkExtension, project: Project): String {
+    if (!cfExtension.version.isPresent) {
+      throw IllegalStateException("Checker Framework version must be set.")
+    }
+
+    if (project.hasProperty("cfVersion")) {
+      return project.properties["cfVersion"]?.toString()
+        ?: throw IllegalStateException("cfVersion property is set but has a null value")
+    }
+    return cfExtension.version.get()
+  }
 
   private fun isTestName(string: String): Boolean {
     return string.contains("test") || string.contains("Test")
