@@ -14,11 +14,6 @@ plugins {
 }
 ```
 
-The `org.checkerframework` plugin modifies existing Java
-compilation tasks. You should apply it *after*
-whatever plugins introduce your Java compilation tasks (usually the `java`
-or `java-library` plugin for non-Android builds).
-
 ## Configuration
 
 ### The Checker Framework version
@@ -168,7 +163,7 @@ following code in your `checkerFramework` configuration block:
 You can disable the Checker Framework for specific tasks.
 This can be useful for skipping the Checker Framework on generated code:
 
-```build.gradle
+```groovy
 tasks.withType(JavaCompile).configureEach {
   // Don't run the checker on generated code.
   if (name.equals("compileMainGeneratedDataTemplateJava")
@@ -325,7 +320,7 @@ To use a locally-modified version of the plugin:
 2. Add the following to the `settings.gradle` file in
    the Gradle project that you want to use the plugin:
 
-   ```gradle
+   ```groovy
    pluginManagement {
        repositories {
            mavenLocal()

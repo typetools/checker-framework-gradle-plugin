@@ -15,7 +15,7 @@ repositories { mavenCentral() }
 
 publishing { repositories { mavenLocal() } }
 
-dependencies { implementation(kotlin("stdlib-jdk8")) }
+dependencies { implementation(kotlin("stdlib")) }
 
 gradlePlugin {
   // TODO: Update the URLs.
