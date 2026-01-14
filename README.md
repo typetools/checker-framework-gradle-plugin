@@ -29,13 +29,13 @@ Checker Framework to use.
 
 * The recommended way is to modify two files.  Add this to `build.gradle`:
 
-  ```groovy
+  ```gradle
   checkerFramework {
     version = libs.checker.get().version
   }
   ```
 
-  and add this to `gradle/libs.versions.toml`.
+  and add this to `gradle/libs.versions.toml`:
 
   ```toml
   [libraries]
@@ -44,7 +44,7 @@ Checker Framework to use.
 
 * Alternately, you can edit just one file.  Add this to `build.gradle`:
 
-  ```groovy
+  ```gradle
   checkerFramework {
     version = "3.53.0"
   }
