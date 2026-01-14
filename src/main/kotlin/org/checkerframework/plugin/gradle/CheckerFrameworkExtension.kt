@@ -15,8 +15,9 @@ abstract class CheckerFrameworkExtension {
 
   /**
    * Which version of the Checker Framework to use. If set to "local", then use the Checker
-   * Framework at the `$CHECKERFRAMEWORK` environment variable. If set to "none", then don't use the
-   * Checker Framework.
+   * Framework at the `$CHECKERFRAMEWORK` environment variable. If set to "disable", then don't use
+   * the Checker Framework. If set to "dependencies", then use the Checker Framework jars provided
+   * in the checkerFramework and checkerQual configurations.
    */
   abstract val version: Property<String>
 
