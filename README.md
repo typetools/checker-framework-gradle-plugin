@@ -29,7 +29,7 @@ Checker Framework to use.
 
 * The recommended way is to modify two files.  Add this to `build.gradle`:
 
-  ```gradle
+  ```groovy
   checkerFramework {
     version = libs.checker.get().version
   }
@@ -44,7 +44,7 @@ Checker Framework to use.
 
 * Alternately, you can edit just one file.  Add this to `build.gradle`:
 
-  ```gradle
+  ```groovy
   checkerFramework {
     version = "3.53.0"
   }
@@ -56,7 +56,7 @@ Framework, found at environment variable `$CHECKERFRAMEWORK`.
 The special value **"disable"** means to not use the Checker Framework.
 
 The command-line argument **`-PcfVersion=...`** (where "..." is a version number,
-"local", or "disable"), overrides settings in gradle buildfiles.
+"local", or "disable") overrides settings in gradle buildfiles.
 
 #### Checker Framework jar files
 
@@ -209,7 +209,7 @@ Also see the `excludeTests` configuration variable, described below.
   }
   ```
 
-  The check for test targets is entirely syntactic: this option will not apply
+  The check for test targets is purely syntactic: this option will not apply
   the checkers to any task whose name includes "test" or "Test".
 
 * If you encounter errors of the form `zip file name too long` when configuring your
