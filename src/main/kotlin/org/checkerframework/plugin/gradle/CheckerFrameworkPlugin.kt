@@ -64,7 +64,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
       }
     }
 
-    val cfManifestDir = project.layout.buildDirectory.dir("checkerframework").get().asFile
+    val cfManifestDir = project.layout.buildDirectory.dir("checkerframework")
 
     project.tasks.register("writeCheckerManifest", WriteCheckerManifestTask::class.java) {
       group = "CheckerFramework"
@@ -97,7 +97,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
         // If the annotationProcessorPath is null, then annotation processing is disabled, so no
         // need to add things to the path.
         options.annotationProcessorPath =
-          options.annotationProcessorPath?.plus(project.files(cfManifestDir.toPath().toString()))
+          options.annotationProcessorPath?.plus(project.files(cfManifestDir))
 
         doFirst {
           val processorArgIndex = options.compilerArgs.indexOf("-processor")
