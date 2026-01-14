@@ -245,7 +245,7 @@ subprojects { subproject ->
 
   checkerFramework {
     checkers = ["org.checkerframework.checker.index.IndexChecker"]
-    version = "3.52.2"
+    version = "3.53.0"
   }
 }
 ```
