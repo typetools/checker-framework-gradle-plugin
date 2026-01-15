@@ -244,7 +244,7 @@ artifact (which only contains annotations) to the module path:
 checkerFramework {
   configurations.compileOnly.setCanBeResolved(true)
   extraJavacArgs = [
-    "--module-path", configurations.compileOnly.asPath
+    "--module-path", configurations.checkerQual.asPath
   ]
 }
 ```

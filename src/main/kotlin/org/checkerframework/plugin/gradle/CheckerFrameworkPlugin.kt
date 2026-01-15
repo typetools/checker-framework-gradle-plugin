@@ -111,7 +111,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
             options.compilerArgs.set(processorArgIndex + 1, "$oldProcessors,$cfProcessors")
           } else if (processorArgIndex != -1) {
             project.logger.warn(
-              "Found -processor argument without a value; checkers will not be appended"
+              "Found -processor argument without a value; no checkers will be used."
             )
           }
           // Must fork for the JVM arguments to be applied.
@@ -197,10 +197,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
     private val cfOptions: CheckerFrameworkExtension
   ) : CommandLineArgumentProvider {
     override fun asArguments(): Iterable<String?> {
-      if (cfOptions.extraJavacArgs.isPresent) {
-        return cfOptions.extraJavacArgs.get()
-      }
-      return emptyList()
+      return cfOptions.extraJavacArgs.getOrElse(emptyList())
     }
   }
 
