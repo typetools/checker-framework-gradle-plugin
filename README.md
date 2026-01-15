@@ -188,8 +188,6 @@ tasks.withType(JavaCompile).configureEach {
 
 Currently, the only supported option is `enabled`.
 
-Also see the `excludeTests` configuration variable, described below.
-
 ### Multi-project builds
 
 In a project with subprojects, you should apply the project to each Java
