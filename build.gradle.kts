@@ -58,9 +58,9 @@ testing {
     val test by getting(JvmTestSuite::class) { dependencies { implementation(project()) } }
     register<JvmTestSuite>("functionalTest") {
       dependencies { implementation(gradleTestKit()) }
-      // associate with main Kotlin compilation to access internal constants
+      // Associate with main Kotlin compilation to access internal constants.
       kotlin.target.compilations.named(name) { associateWith(kotlin.target.compilations["main"]) }
-      // make plugin-under-test-metadata.properties accessible to TestKit
+      // Make plugin-under-test-metadata.properties accessible to TestKit.
       gradlePlugin.testSourceSet(sources)
       targets.configureEach {
         testTask {

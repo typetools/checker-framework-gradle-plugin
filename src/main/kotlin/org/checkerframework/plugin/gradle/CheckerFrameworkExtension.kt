@@ -10,7 +10,7 @@ abstract class CheckerFrameworkExtension {
    */
   abstract val checkers: ListProperty<String>
 
-  /** A list of extra command-line options to pass directly to javac when running typecheckers. */
+  /** A list of extra command-line options to pass to javac when running a typechecker. */
   abstract val extraJavacArgs: ListProperty<String>
 
   /**

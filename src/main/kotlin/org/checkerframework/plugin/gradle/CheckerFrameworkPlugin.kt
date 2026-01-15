@@ -178,19 +178,19 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
   }
 
   private fun getCFVersion(cfExtension: CheckerFrameworkExtension, project: Project): String {
-    if (!cfExtension.version.isPresent) {
-      throw IllegalStateException("Checker Framework version must be set.")
-    }
-
     if (project.hasProperty("cfVersion")) {
       return project.properties["cfVersion"]?.toString()
         ?: throw IllegalStateException("cfVersion property is set but has a null value")
+    }
+
+    if (!cfExtension.version.isPresent) {
+      throw IllegalStateException("Checker Framework version must be set.")
     }
     return cfExtension.version.get()
   }
 
   private fun isTestName(string: String): Boolean {
-    return string.contains("test") || string.contains("Test")
+    return string.matches(Regex("(T|(^|[A-Z_])t)est($|[A-Z_])"))
   }
 
   internal class CheckerFrameworkCompilerArgumentProvider(
