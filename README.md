@@ -10,7 +10,7 @@ Add the following to your `build.gradle` file:
 ```groovy
 plugins {
   // Checker Framework pluggable type-checking
-  id("org.checkerframework").version("0.6.60")
+  id("org.checkerframework").version("0.9.0")
 }
 ```
 
@@ -138,25 +138,36 @@ checkerFramework {
 }
 ```
 
-### Incremental compilation
+## Disabling the Checker Framework
 
-By default, the plugin assumes that all checkers are ["isolating incremental
-annotation
-processors"](https://docs.gradle.org/current/userguide/java_plugin.html#sec:incremental_annotation_processing).
-This assumption speeds up builds by enabling incremental compilation.
+You can disable the Checker Framework (e.g., when testing something unrelated)
+either in your build file or from the command line.
 
-Gradle's documentation warns that incremental compilation with the Checker
-Framework plugin (or any other plugin that uses internal Javac APIs) may crash,
-because Gradle wraps some of those APIs.  Such a crash would appear as a
-`ClassCastException` referencing some internal Javac class. If you encounter
-such a crash, you can disable incremental compilation in your build using the
-following code in your `checkerFramework` configuration block:
+In your build file:
 
 ```groovy
-  checkerFramework {
-    incrementalize = false
-  }
+checkerFramework {
+  version = "disable"
+}
 ```
+
+From the command line, add `-PcfVersion=disable` to your gradle invocation.
+
+### Disabling the Checker Framework for tests
+
+By default, the plugin applies the selected checkers to all `JavaCompile` targets,
+including test targets such as `testCompileJava`.
+
+Here is how to prevent checkers from being applied to test targets:
+
+```groovy
+checkerFramework {
+  excludeTests = true
+}
+```
+
+A "test target" is one that contains "test" or "Test" as a word.
+Words are determined using camelCase; underscores (`_`) also delimit words.
 
 ### Disabling the Checker Framework for a specific compile task
 
@@ -179,52 +190,14 @@ Currently, the only supported option is `enabled`.
 
 Also see the `excludeTests` configuration variable, described below.
 
-### Other options
-
-* You can disable the Checker Framework temporarily (e.g. when testing something
-  unrelated) either in your build file or from the command line. In your build
-  file:
-
-  ```groovy
-  checkerFramework {
-    version = "disable"
-  }
-  ```
-
-  From the command line, add `-PcfVersion=disable` to your gradle invocation.
-
-* By default, the plugin applies the selected checkers to all `JavaCompile` targets,
-  including test targets such as `testCompileJava`.
-
-  Here is how to prevent checkers from being applied to test targets:
-
-  ```groovy
-  checkerFramework {
-    excludeTests = true
-  }
-  ```
-
-  The check for test targets is purely syntactic: this option will not apply
-  the checkers to any task whose name includes "test" or "Test".
-
-* If you encounter errors of the form `zip file name too long` when configuring your
-  Gradle project, you can use the following code to skip this plugin's version check,
-  which reads the manifest file of the version of the Checker Framework you are actually
-  using:
-
-  ```groovy
-  checkerFramework {
-    skipVersionCheck = true
-  }
-  ```
-
 ### Multi-project builds
 
 In a project with subprojects, you should apply the project to each Java
 subproject (and to the top-level project, in the unlikely case that it is a Java
 project).  Here are two approaches.
 
-**Approach 1:**
+#### Approach 1
+
 All Checker Framework configuration (the `checkerFramework` block and any
 `dependencies`) remains in the top-level `build.gradle` file.  Put it in a
 `subprojects` block (or an `allprojects` block in the unlikely case that the
@@ -232,7 +205,7 @@ top-level project is a Java project).  For example, in Groovy syntax:
 
 ```groovy
 plugins {
-  id("org.checkerframework").version("0.6.60")
+  id("org.checkerframework").version("0.9.0")
 }
 
 subprojects { subproject ->
@@ -245,15 +218,11 @@ subprojects { subproject ->
 }
 ```
 
-**Approach 2:**
+#### Approach 2
+
 Apply the plugin in the `build.gradle` in each subproject as if it
 were a stand-alone project. You must do this if you require different configuration
 for different subprojects (for instance, if you want to run different checkers).
-
-### Incompatibility with Error Prone 2.3.4 and earlier
-
-To use both [Error Prone](https://errorprone.info/) and the Checker Framework,
-you need to use Error Prone version 2.4.0 (released in May 2020) or later.
 
 ## Modules
 
@@ -309,7 +278,7 @@ warnings in the code that Lombok generates.
 
 ## Using a locally-built plugin
 
-To use a locally-modified version of the plugin:
+To use a locally-modified version of this plugin:
 
 1. Publish the plugin to your local Maven repository:
 
@@ -328,3 +297,42 @@ To use a locally-modified version of the plugin:
        }
    }
    ```
+
+## Troubleshooting
+
+### zip file name too long
+
+An error of the form `zip file name too long` may be due to this plugin's
+version check, which reads the manifest file of the version of the Checker
+Framework you are actually using.  To disable it:
+
+```groovy
+checkerFramework {
+  skipVersionCheck = true
+}
+```
+
+### ClassCastException for a javac class
+
+If you encounter a crash with a `ClassCastException` referencing some internal
+Javac class, disable incremental compilation in your build using the following
+code in your `checkerFramework` configuration block:
+
+```groovy
+  checkerFramework {
+    incrementalize = false
+  }
+```
+
+Background:  By default, the plugin assumes that all checkers are ["isolating
+incremental annotation
+processors"](https://docs.gradle.org/current/userguide/java_plugin.html#sec:incremental_annotation_processing).
+This assumption speeds up builds by enabling incremental compilation.  Gradle's
+documentation warns that incremental compilation with the Checker Framework
+plugin (or any other plugin that uses internal Javac APIs) may crash, because
+Gradle wraps some of those APIs.
+
+### Incompatibility with Error Prone 2.3.4 and earlier
+
+To use both [Error Prone](https://errorprone.info/) and the Checker Framework,
+you need to use Error Prone version 2.4.0 (released in May 2020) or later.
