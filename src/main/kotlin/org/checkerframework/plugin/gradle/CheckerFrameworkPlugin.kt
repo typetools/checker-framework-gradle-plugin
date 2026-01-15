@@ -146,6 +146,13 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
     }
   }
 
+  /**
+   * Add the default dependencies for the given {@code jarName}.
+   *
+   * @param cfExtension CF configuration
+   * @param project current project
+   * @param jarName name of the jar which is added as a dependency
+   */
   private fun Configuration.addDefaultCFDependencies(
     cfExtension: CheckerFrameworkExtension,
     project: Project,
@@ -177,6 +184,15 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
     }
   }
 
+  /**
+   * Get the version configuration value, which is a Checker Framework version or one of "none",
+   * "disable", "dependencies".
+   *
+   * @param cfExtension CF configuration
+   * @param project current project
+   * @return the version configuration value, which is a Checker Framework version or one of "none",
+   *   "disable", "dependencies".
+   */
   private fun getCFVersion(cfExtension: CheckerFrameworkExtension, project: Project): String {
     if (project.hasProperty("cfVersion")) {
       return project.properties["cfVersion"]?.toString()
@@ -189,10 +205,12 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
     return cfExtension.version.get()
   }
 
-  private fun isTestName(string: String): Boolean {
-    return string.matches(Regex("(T|(^|[A-Z_])t)est($|[A-Z_])"))
+  /** Return true if the Name is a test name. */
+  private fun isTestName(taskName: String): Boolean {
+    return taskName.matches(Regex("(T|(^|[A-Z_])t)est($|[A-Z_])"))
   }
 
+  /** Provides extraJavacArgs to the compiler. */
   internal class CheckerFrameworkCompilerArgumentProvider(
     private val cfOptions: CheckerFrameworkExtension
   ) : CommandLineArgumentProvider {
@@ -201,6 +219,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
     }
   }
 
+  /** Provides JVM arguments. */
   internal class CheckerFrameworkJvmArgumentProvider : CommandLineArgumentProvider {
     override fun asArguments(): Iterable<String?> {
       return listOf(
