@@ -13,6 +13,7 @@ plugins {
   id("org.checkerframework").version("0.9.0")
 }
 ```
+The plugin supports Gradle versions 7.3 and above, which requires Java 17 and above.
 
 ## Configuration
 
@@ -334,3 +335,29 @@ Gradle wraps some of those APIs.
 
 To use both [Error Prone](https://errorprone.info/) and the Checker Framework,
 you need to use Error Prone version 2.4.0 (released in May 2020) or later.
+
+## Migration guide
+How to move from the old plugin to the new plugin.
+
+1.) You must specify [a version number](#the-checker-framework-version).
+2.) You no longer need to add a checkerFramework dependency or add `checker-qual` to the `compileOnly`
+or `testCompileOnly` configurations. These are now added automatically based on the specified Checker 
+Framework version. So you can remove code like the following:
+
+```groovy
+dependencies {
+  compileOnly("org.checkerframework:checker-qual:${checkerFrameworkVersion}")
+  testCompileOnly("org.checkerframework:checker-qual:${checkerFrameworkVersion}")
+  checkerFramework("org.checkerframework:checker:${checkerFrameworkVersion}")
+}
+```
+
+If you want to use a locally built CheckerFramework, pass `-PcfVersion=local`.
+If you want to use a non-standard Checker Framework jar file see [Checker Framework jar files](#checker-framework-jar-files).
+
+3.) These options have been removed and should no longer be needed:
+`skipVersionCheck` -> There is no longer a version check that might cause "zip file too large" error
+`suppressLombokWarnings` -> Use built in [Lombok options](#lombok-compatibility) to configure this. 
+`skipCheckerFramework` -> Set the version to `"disable"` to skip the Checker Framework.
+
+
