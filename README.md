@@ -258,7 +258,7 @@ checkerFramework {
 This plugin automatically interacts with
 the [Lombok Gradle Plugin](https://plugins.gradle.org/plugin/io.freefair.lombok)
 to delombok your source code before it is passed to the Checker Framework
-for typechecking. This plugin does not support any other use of Lombok.
+for type-checking. This plugin does not support any other use of Lombok.
 
 For the Checker Framework to work properly on delombok'd source code,
 you must include the following key in your project's `lombok.config` file:
@@ -307,9 +307,9 @@ you need to make some changes in order to use version 1.x.
 
 1. You must specify [a version number](#the-checker-framework-version).
 
-2. You no longer need to add a checkerFramework dependency or add `checker-qual`
-   to the `compileOnly` or `testCompileOnly` configurations. So you can remove
-   code like the following:
+2. You no longer need to add a `checkerFramework` dependency or add
+   `checker-qual` to the `compileOnly` or `testCompileOnly` configurations.
+   Remove code like the following:
 
    ```groovy
    dependencies {
@@ -320,7 +320,7 @@ you need to make some changes in order to use version 1.x.
    ```
 
 3. These options have been removed:
-   * `skipCheckerFramework`:  Set the version to `"disable"` to skip the Checker
+   * **`skipCheckerFramework`**:  Set the version to `"disable"` to skip the Checker
      Framework.  For example, change command-line argument
      `-PskipCheckerFramework` to `-PcfVersion=disable`, or change
 
@@ -346,11 +346,11 @@ you need to make some changes in order to use version 1.x.
      of the Checker Framework.  Change command-line argument
      `-PcfLocal` to `-PcfVersion=local`.
 
-   * **`suppressLombokWarnings`**: Use built-in [Lombok
-     options](#lombok-compatibility) to configure interaction with Lombok.
+   * **`suppressLombokWarnings`**: Use [Lombok options](#lombok-compatibility)
+     to configure interaction with Lombok.
 
    * **`skipVersionCheck`**: There is no longer a version check that might cause
-     "zip file too large" error, so remove the `-PskipVersionCheck` command-line
+     "zip file too large" error.  Remove the `-PskipVersionCheck` command-line
      argument and remove Gradle code like
 
      ```groovy
@@ -400,3 +400,17 @@ Gradle wraps some of those APIs.
 
 To use both [Error Prone](https://errorprone.info/) and the Checker Framework,
 you need to use Error Prone version 2.4.0 (released in May 2020) or later.
+
+<!--
+LocalWords:  JavaCompile gradle checkerframework checkerFramework toml lombok
+LocalWords:  PcfVersion buildfiles qual eisopVersion eisop1 checkerQual config
+LocalWords:  kotlin CheckerFrameworkExtension listOf extraJavacArgs Multi eisop
+LocalWords:  Werror Astubs testCompileJava excludeTests camelCase classfiles
+LocalWords:  withType configureEach compileMainGeneratedDataTemplateJava
+LocalWords:  compileMainGeneratedRestJava subprojects allprojects mavenLocal
+LocalWords:  delombok addLombokGeneratedAnnotation addSuppressWarnings cfLocal
+LocalWords:  publishToMavenLocal pluginManagement gradlePluginPortal
+LocalWords:  compileOnly testCompileOnly checkerFrameworkVersion PcfLocal
+LocalWords:  skipCheckerFramework PskipCheckerFramework skipVersionCheck
+LocalWords:  suppressLombokWarnings PskipVersionCheck
+-->
