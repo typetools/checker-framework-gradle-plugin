@@ -15,7 +15,7 @@ plugins {
 ```
 
 If you are upgrading from plugin version 0.x to 1.x, see the [migration
-guide](#migrating-from-0.x-to-1.x).
+guide](#migrating-from-0x-to-1x).
 
 The plugin supports Gradle versions 7.3 and above, which requires Java 17 and
 above.  Although you must compile your project using at least Java 17, the
