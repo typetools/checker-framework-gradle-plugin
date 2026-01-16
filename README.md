@@ -10,7 +10,7 @@ Add the following to your `build.gradle` file:
 ```groovy
 plugins {
   // Checker Framework pluggable type-checking
-  id("org.checkerframework").version("0.9.0")
+  id("org.checkerframework").version("1.0.0")
 }
 ```
 
@@ -203,7 +203,7 @@ top-level project is a Java project).  For example, in Groovy syntax:
 
 ```groovy
 plugins {
-  id("org.checkerframework").version("0.9.0")
+  id("org.checkerframework").version("1.0.0")
 }
 
 subprojects { subproject ->
