@@ -300,34 +300,67 @@ To use a locally-modified version of this plugin:
    }
    ```
 
-## Migration guide from 0.x to 1.x
+## Migrating from 0.x to 1.x
 
-If your project uses version 0.x of 
+If your project uses version 0.x of the Checker Framework Gradle Plugin,
+you need to make some changes in order to use version 1.x.
 
-How to move from the old plugin to the new plugin.
+1. You must specify [a version number](#the-checker-framework-version).
 
-1.) You must specify [a version number](#the-checker-framework-version).
-2.) You no longer need to add a checkerFramework dependency or add `checker-qual` to the `compileOnly`
-or `testCompileOnly` configurations. These are now added automatically based on the specified Checker 
-Framework version. So you can remove code like the following:
+2. You no longer need to add a checkerFramework dependency or add `checker-qual`
+   to the `compileOnly` or `testCompileOnly` configurations. So you can remove
+   code like the following:
 
-```groovy
-dependencies {
-  compileOnly("org.checkerframework:checker-qual:${checkerFrameworkVersion}")
-  testCompileOnly("org.checkerframework:checker-qual:${checkerFrameworkVersion}")
-  checkerFramework("org.checkerframework:checker:${checkerFrameworkVersion}")
-}
-```
+   ```groovy
+   dependencies {
+     compileOnly("org.checkerframework:checker-qual:${checkerFrameworkVersion}")
+     testCompileOnly("org.checkerframework:checker-qual:${checkerFrameworkVersion}")
+     checkerFramework("org.checkerframework:checker:${checkerFrameworkVersion}")
+   }
+   ```
 
-If you want to use a locally built CheckerFramework, pass `-PcfVersion=local`.
-If you want to use a non-standard Checker Framework jar file see [Checker Framework jar files](#checker-framework-jar-files).
+3. These options have been removed:
+   * `skipCheckerFramework`:  Set the version to `"disable"` to skip the Checker
+     Framework.  For example, change command-line argument
+     `-PskipCheckerFramework` to `-PcfVersion=disable`, or change
 
-3.) These options have been removed and should no longer be needed:
-`skipVersionCheck` -> There is no longer a version check that might cause "zip file too large" error
-`suppressLombokWarnings` -> Use built in [Lombok options](#lombok-compatibility) to configure this. 
-`skipCheckerFramework` -> Set the version to `"disable"` to skip the Checker Framework.
+     ```groovy
+     checkerFramework {
+       skipCheckerFramework = true
+     }
+     ```
 
+     to
 
+     ```groovy
+     checkerFramework {
+       version = "disable"
+     }
+     ```
+
+     Setting the version to "disable" causes the Checker Framework not to be run
+     at all.  You can also [disable the checker framework for a specific
+     task](#disabling-the-checker-framework-for-a-specific-compile-task).
+
+   * **`cfLocal`**: Set the version to `"local"` to use a locally-built version
+     of the Checker Framework.  Change command-line argument
+     `-PcfLocal` to `-PcfVersion=local`.
+
+   * **`suppressLombokWarnings`**: Use built-in [Lombok
+     options](#lombok-compatibility) to configure interaction with Lombok.
+
+   * **`skipVersionCheck`**: There is no longer a version check that might cause
+     "zip file too large" error, so remove the `-PskipVersionCheck` command-line
+     argument and remove Gradle code like
+
+     ```groovy
+     checkerFramework {
+       skipVersionCheck = true
+     }
+     ```
+
+4. If you want to use a non-standard Checker Framework jar file (such as that of
+    eisop) see [Checker Framework jar files](#checker-framework-jar-files).
 
 ## Troubleshooting
 
@@ -367,4 +400,3 @@ Gradle wraps some of those APIs.
 
 To use both [Error Prone](https://errorprone.info/) and the Checker Framework,
 you need to use Error Prone version 2.4.0 (released in May 2020) or later.
-
