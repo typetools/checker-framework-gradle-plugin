@@ -50,7 +50,7 @@ class CfPluginFunctionalTest : AbstractPluginFunctionalTest() {
   }
 
   @Test
-  fun `test -PcfVersion=disable `() {
+  fun `test -PcfVersion=disable`() {
     buildFile.appendText(
       """
       configure<CheckerFrameworkExtension> {
