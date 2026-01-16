@@ -364,18 +364,6 @@ you need to make some changes in order to use version 1.x.
 
 ## Troubleshooting
 
-### zip file name too long
-
-An error of the form `zip file name too long` may be due to this plugin's
-version check, which reads the manifest file of the version of the Checker
-Framework you are actually using.  To disable it:
-
-```groovy
-checkerFramework {
-  skipVersionCheck = true
-}
-```
-
 ### ClassCastException for a javac class
 
 If you encounter a crash with a `ClassCastException` referencing some internal
