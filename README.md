@@ -144,8 +144,8 @@ checkerFramework {
 
 ## Disabling the Checker Framework
 
-You can disable the Checker Framework (e.g., when testing something unrelated)
-either in your build file or from the command line.
+You can completely disable the Checker Framework (e.g., when testing something
+unrelated) either in your build file or from the command line.
 
 In your build file:
 
@@ -192,13 +192,13 @@ tasks.withType(JavaCompile).configureEach {
 
 Currently, the only supported option is `enabled`.
 
-### Multi-project builds
+## Multi-project builds
 
 In a project with subprojects, you should apply the project to each Java
 subproject (and to the top-level project, in the unlikely case that it is a Java
 project).  Here are two approaches.
 
-#### Approach 1
+### Approach 1
 
 All Checker Framework configuration (the `checkerFramework` block and any
 `dependencies`) remains in the top-level `build.gradle` file.  Put it in a
@@ -220,7 +220,7 @@ subprojects { subproject ->
 }
 ```
 
-#### Approach 2
+### Approach 2
 
 Apply the plugin in the `build.gradle` in each subproject as if it
 were a stand-alone project. You must do this if you require different configuration
