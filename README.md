@@ -48,7 +48,7 @@ Checker Framework to use.
 The special value **"local"** means to use a locally-built version of the Checker
 Framework, found at environment variable `$CHECKERFRAMEWORK`.
 
-The special value **"disable"** means to not use the Checker Framework.
+The special value **"disable"** means not to use the Checker Framework.
 
 The command-line argument **`-PcfVersion=...`** (where "..." is a version number,
 "local", or "disable") overrides settings in gradle buildfiles.
@@ -124,7 +124,7 @@ to the definitions of the custom qualifiers.
 
 ### Providing additional options to the compiler
 
-You can set the `checkerFramework.extraJavacArgs` property in order to pass
+You can set the `checkerFramework.extraJavacArgs` property to pass
 additional options to the compiler when running a pluggable type-checker.
 
 For example, to treat all warnings as errors and to use a stub file:
@@ -186,7 +186,7 @@ tasks.withType(JavaCompile).configureEach {
 }
 ```
 
-The only configuration available on a per tasks basis is `enabled`.
+The only configuration available on a per-task basis is `enabled`.
 
 ### Multi-project builds
 
