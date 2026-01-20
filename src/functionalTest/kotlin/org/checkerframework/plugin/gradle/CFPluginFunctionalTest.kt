@@ -357,6 +357,27 @@ class CfPluginFunctionalTest : AbstractPluginFunctionalTest() {
   }
 
   @Test
+  fun `test missing checkers`() {
+    buildFile.appendText(
+      """
+      configure<CheckerFrameworkExtension> {
+        version = "$TEST_CF_VERSION"
+        extraJavacArgs = listOf("-Aversion")
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgsAndFail("compileJava")
+
+    // then
+    assertThat(result.output).contains("Must specify checkers for the Checker Framework.")
+  }
+
+  @Test
   fun `test checkerFramework configuration`() {
     // This tests that the version of the Checker Framework in the checker framework configuration
     // is used instead of the version in 'version'.

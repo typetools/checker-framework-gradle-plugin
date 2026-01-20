@@ -78,7 +78,7 @@ dependencies {
 
 ### Which checkers to run
 
-The `checkerFramework.checkers` property lists which checkers will be run.
+You must specify which checkers to run using `checkerFramework.checkers` property.
 
 For example, using Groovy syntax in a `build.gradle` file:
 

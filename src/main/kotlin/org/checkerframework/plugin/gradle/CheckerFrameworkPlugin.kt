@@ -94,6 +94,10 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
       options.forkOptions.jvmArgumentProviders.add(CheckerFrameworkJvmArgumentProvider())
 
       if (cfExtension.checkers.isPresent) {
+        val checkers = cfExtension.checkers.get()
+        if (checkers.isEmpty()) {
+          throw IllegalStateException("Must specify checkers for the Checker Framework.")
+        }
         // If the annotationProcessorPath is null, then annotation processing is disabled, so no
         // need to add things to the path.
         options.annotationProcessorPath =
@@ -107,7 +111,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
             // This can't be done in CheckerFrameworkCompilerArgumentProvider because it modifies
             // existing arguments rather than adding a new one.
             val oldProcessors = options.compilerArgs.get(processorArgIndex + 1)
-            val cfProcessors = cfExtension.checkers.get().joinToString(separator = ",")
+            val cfProcessors = checkers.joinToString(separator = ",")
             options.compilerArgs.set(processorArgIndex + 1, "$oldProcessors,$cfProcessors")
           } else if (processorArgIndex != -1) {
             project.logger.warn(
@@ -117,6 +121,8 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
           // Must fork for the JVM arguments to be applied.
           options.isFork = true
         }
+      } else {
+        throw IllegalStateException("Must specify checkers for the Checker Framework.")
       }
 
       val compileTaskName = name
