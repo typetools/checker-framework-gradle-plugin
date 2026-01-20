@@ -186,11 +186,11 @@ tasks.withType(JavaCompile).configureEach {
 }
 ```
 
-Currently, the only supported option is `enabled`.
+The only configuration available on a per tasks basis is `enabled`.
 
 ### Multi-project builds
 
-In a project with subprojects, you should apply the project to each Java
+In a project with subprojects, you should apply the plugin to each Java
 subproject (and to the top-level project, in the unlikely case that it is a Java
 project).  Here are two approaches.
 
@@ -297,18 +297,6 @@ To use a locally-modified version of this plugin:
    ```
 
 ## Troubleshooting
-
-### zip file name too long
-
-An error of the form `zip file name too long` may be due to this plugin's
-version check, which reads the manifest file of the version of the Checker
-Framework you are actually using.  To disable it:
-
-```groovy
-checkerFramework {
-  skipVersionCheck = true
-}
-```
 
 ### ClassCastException for a javac class
 
