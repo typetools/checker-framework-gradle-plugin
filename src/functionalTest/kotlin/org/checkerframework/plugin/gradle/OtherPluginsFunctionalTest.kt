@@ -5,7 +5,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 
-class OtherPluginFunctionalTest : AbstractPluginFunctionalTest() {
+class OtherPluginsFunctionalTest : AbstractPluginFunctionalTest() {
   @BeforeEach
   fun setup() {
     buildFile.appendText(
@@ -113,7 +113,7 @@ class OtherPluginFunctionalTest : AbstractPluginFunctionalTest() {
           }
 
           configure<CheckerFrameworkExtension> {
-              version = "local"
+              version = "$TEST_CF_VERSION"
               checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
           }
           """
