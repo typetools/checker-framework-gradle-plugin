@@ -102,7 +102,7 @@ class OtherPluginsFunctionalTest : AbstractPluginFunctionalTest() {
           }
 
           dependencies {
-              errorprone("com.google.errorprone:error_prone_core:2.30.0")
+              errorprone("com.google.errorprone:error_prone_core:2.46.0")
           }
 
           repositories {
