@@ -51,7 +51,7 @@ class OtherPluginsFunctionalTest : AbstractPluginFunctionalTest() {
       .contains("Foo.java:12: error: [assignment] incompatible types in assignment.")
   }
 
-  @Disabled // Crashes
+  @Disabled // Crashes see https://github.com/kelloggm/checkerframework-gradle-plugin/issues/316.
   @Test
   fun `test lombok latest`() {
     buildFile.appendText(
