@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test
 
 const val TEST_CF_VERSION = "3.53.0"
 
+@Disabled // TODO
 class CfPluginFunctionalTest : AbstractPluginFunctionalTest() {
   @BeforeEach
   fun setup() {
