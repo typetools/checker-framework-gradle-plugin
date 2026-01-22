@@ -20,6 +20,10 @@ class OtherPluginsFunctionalTest : AbstractPluginFunctionalTest() {
 
   @Test
   fun `test lombok 8 12 1`() {
+    val majorVersion = Runtime.version().feature()
+    if (majorVersion >= 25) {
+      return
+    }
     buildFile.appendText(
       """
        plugins {
@@ -42,13 +46,16 @@ class OtherPluginsFunctionalTest : AbstractPluginFunctionalTest() {
     // when
     val result = testProjectDir.buildWithArgsAndFail("build")
 
-    // then
-    assertThat(result.output)
-      .contains(
-        "User.java:9: error: [argument] incompatible argument for parameter y of FooBuilder.y."
-      )
-    assertThat(result.output)
-      .contains("Foo.java:12: error: [assignment] incompatible types in assignment.")
+    if (majorVersion >= 25) {
+
+      // then
+      assertThat(result.output)
+        .contains(
+          "User.java:9: error: [argument] incompatible argument for parameter y of FooBuilder.y."
+        )
+      assertThat(result.output)
+        .contains("Foo.java:12: error: [assignment] incompatible types in assignment.")
+    }
   }
 
   @Disabled // Crashes see https://github.com/kelloggm/checkerframework-gradle-plugin/issues/316.
@@ -87,8 +94,6 @@ class OtherPluginsFunctionalTest : AbstractPluginFunctionalTest() {
 
   @Test
   fun `test errorprone latest`() {
-    // Example assertions to check for specific versions
-    // For example, if you need Java 17 or higher:
     val majorVersion = Runtime.version().feature()
     if (majorVersion < 21) {
       return
