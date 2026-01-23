@@ -83,7 +83,8 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
 
       if (
         cfExtension.skipCheckerFramework.getOrElse(false) ||
-          project.hasProperty("skipCheckerFramework") ||
+          (project.hasProperty("skipCheckerFramework") ||
+            !(project.properties["skipCheckerFramework"]?.toString() ?: "false").equals("false")) ||
           !cfCompileOptions.enabled.getOrElse(true) ||
           (cfExtension.excludeTests.getOrElse(false) && isTestName(name))
       ) {

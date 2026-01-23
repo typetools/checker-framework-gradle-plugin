@@ -333,7 +333,7 @@ you need to make some changes in order to use version 1.x.
        skipVersionCheck = true
      }
      ```
-     
+
    * **`cfLocal`**: Set the version to `"local"` to use a locally-built version
      of the Checker Framework.  Change command-line argument
      `-PcfLocal` to `-PcfVersion=local`.
