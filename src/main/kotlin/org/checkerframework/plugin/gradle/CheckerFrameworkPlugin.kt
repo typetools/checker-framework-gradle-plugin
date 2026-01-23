@@ -8,12 +8,12 @@ import org.gradle.api.Task
 import org.gradle.api.artifacts.Configuration
 import org.gradle.api.plugins.ExtensionAware
 import org.gradle.api.plugins.JavaBasePlugin
+import org.gradle.api.plugins.JavaPluginExtension
+import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.SourceSetContainer
 import org.gradle.api.tasks.TaskProvider
 import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.kotlin.dsl.getByName
-import org.gradle.kotlin.dsl.named
-import org.gradle.kotlin.dsl.register
 import org.gradle.kotlin.dsl.withType
 import org.gradle.process.CommandLineArgumentProvider
 import org.gradle.util.GradleVersion
@@ -75,24 +75,6 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
       cfBuildDir.set(cfManifestDir)
     }
 
-    val cfCompileJava =
-      project.tasks.register<JavaCompile>("cfCompileJava") {
-        group = "Checker Framework tasks"
-
-        description = "Runs the Checker Framework on the result of delomboking the source code"
-
-        val originalCompileJava = project.tasks.named<JavaCompile>("compileJava").get()
-
-        // Copy properties from the original task
-        classpath = originalCompileJava.classpath
-        destinationDirectory.set(project.layout.buildDirectory.dir("checkerFrameworkClasses"))
-        options.compilerArgs = originalCompileJava.options.compilerArgs
-        options.annotationProcessorPath = originalCompileJava.options.annotationProcessorPath
-        // The sources is reset if lombok is added.
-        source(originalCompileJava.source())
-      }
-    project.tasks.named("build").get().dependsOn(cfCompileJava)
-
     project.tasks.withType<JavaCompile>().configureEach {
       val cfCompileOptions =
         (options as ExtensionAware)
@@ -144,34 +126,47 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
       } else {
         throw IllegalStateException("Must specify checkers for the Checker Framework.")
       }
+    }
+    project.pluginManager.withPlugin("io.freefair.lombok") {
+      val javaPluginExtension: JavaPluginExtension =
+        project.getExtensions().getByType(JavaPluginExtension::class.java)
+      javaPluginExtension.sourceSets.forEach { s -> configureSourceSetDefaults(s, project) }
+    }
+  }
 
-      val compileTaskName = name
+  private fun configureSourceSetDefaults(sourceSet: SourceSet, project: Project) {
 
-      // Handle Lombok
-      project.pluginManager.withPlugin("io.freefair.lombok") {
-        if (!compileTaskName.equals("cfCompileJava")) {
-          // Find the delombok task that delomboks the code for this JavaCompile task.
-          val delombokTaskProvider: TaskProvider<Task> =
-            if (compileTaskName == "compileJava") {
-              project.tasks.named("delombok")
-            } else {
-              val sourceSetName =
-                compileTaskName.substring("compile".length, compileTaskName.length - "Java".length)
-              project.tasks.named("delombok$sourceSetName")
-            }
+    val checkerTaskProvider: TaskProvider<JavaCompile> =
+      project.tasks.register(
+        sourceSet.getTaskName("checker", "CompileJava"),
+        JavaCompile::class.java,
+      )
 
-          if (delombokTaskProvider.isPresent) {
-            val delombokTask = delombokTaskProvider.get()
-            //              dependsOn.add(delombokTask)
-            // The lombok plugin's default formatting is pretty-printing, without the @Generated
-            // annotations that we need to recognize lombok'd code.
-            delombokTask.extensions.add("generated", "generate")
-            // Set the sources to the delomboked code.
-            //              source = delombokTask.outputs.files.asFileTree
-            cfCompileJava.get().source(delombokTask.outputs.files.asFileTree)
-          }
-        }
-      }
+    sourceSet.getExtensions().add("checkerTask", checkerTaskProvider)
+    val compileTaskProvider: TaskProvider<JavaCompile> =
+      project.getTasks().named(sourceSet.getCompileJavaTaskName(), JavaCompile::class.java, {})
+    val delombokTaskProvider: TaskProvider<Task> =
+      project.getTasks().named(sourceSet.getTaskName("delombok", ""), Task::class.java, {})
+
+    project.afterEvaluate {
+      val delombokTask = delombokTaskProvider.get()
+      val checkerTask = checkerTaskProvider.get()
+      val compileTask = compileTaskProvider.get()
+      checkerTask.group = "Checker Framework tasks"
+      checkerTask.description =
+        "Runs the Checker Framework on the result of delomboking the source code"
+      checkerTask.classpath = compileTask.classpath
+      delombokTask.extensions.add("generated", "generate")
+      // Set the sources to the delomboked code.
+      checkerTask.source(delombokTask.outputs.files.asFileTree)
+      // Copy properties from the original task
+      checkerTask.classpath = compileTask.classpath
+      checkerTask.destinationDirectory.set(
+        project.layout.buildDirectory.dir("checkerFrameworkClasses")
+      )
+      checkerTask.options.compilerArgs = compileTask.options.compilerArgs
+      checkerTask.options.annotationProcessorPath = compileTask.options.annotationProcessorPath
+      project.tasks.named("build").get().dependsOn(checkerTask)
     }
   }
 
