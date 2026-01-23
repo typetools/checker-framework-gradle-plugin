@@ -1,6 +1,7 @@
 package org.checkerframework.plugin.gradle
 
 import com.google.common.truth.Truth.assertThat
+import org.gradle.testkit.runner.TaskOutcome
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
@@ -114,15 +115,16 @@ class OtherPluginsFunctionalTest : AbstractPluginFunctionalTest() {
     testProjectDir.writeLombokExample()
 
     // when
-    val result = testProjectDir.buildWithArgsAndFail("build", "-PcfVersion=disable")
+    val result = testProjectDir.buildWithArgs("build", "-PskipCheckerFramework")
 
     // then
+    assertThat(result.task(":build")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
     assertThat(result.output)
-      .contains(
+      .doesNotContain(
         "User.java:9: error: [argument] incompatible argument for parameter y of FooBuilder.y."
       )
     assertThat(result.output)
-      .contains("Foo.java:12: error: [assignment] incompatible types in assignment.")
+      .doesNotContain("Foo.java:12: error: [assignment] incompatible types in assignment.")
   }
 
   @Test
