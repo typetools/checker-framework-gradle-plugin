@@ -82,7 +82,8 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
           .create("checkerFrameworkCompile", CheckerFrameworkCompileExtension::class.java)
 
       if (
-        getCFVersion(cfExtension, project) == "disable" ||
+        cfExtension.skipCheckerFramework.getOrElse(false) ||
+          project.hasProperty("skipCheckerFramework") ||
           !cfCompileOptions.enabled.getOrElse(true) ||
           (cfExtension.excludeTests.getOrElse(false) && isTestName(name))
       ) {
@@ -205,7 +206,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
           )
         }
         add(project.dependencies.create(project.files(jarFile)))
-      } else if (version == "dependencies" || version == "disable") {
+      } else if (version == "dependencies") {
         // Don't add dependencies.
       } else {
         add(project.dependencies.create("org.checkerframework:$jarName:$version"))
@@ -215,12 +216,12 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
 
   /**
    * Get the version configuration value, which is a Checker Framework version or one of "local",
-   * "disable", "dependencies".
+   * "dependencies".
    *
    * @param cfExtension CF configuration
    * @param project current project
    * @return the version configuration value, which is a Checker Framework version or one of
-   *   "local", "disable", "dependencies".
+   *   "local", "dependencies".
    */
   private fun getCFVersion(cfExtension: CheckerFrameworkExtension, project: Project): String {
     if (project.hasProperty("cfVersion")) {

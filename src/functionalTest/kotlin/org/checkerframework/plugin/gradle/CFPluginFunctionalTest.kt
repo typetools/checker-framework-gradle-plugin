@@ -50,7 +50,7 @@ class CfPluginFunctionalTest : AbstractPluginFunctionalTest() {
   }
 
   @Test
-  fun `test -PcfVersion=disable`() {
+  fun `test -PskipCheckerFramework`() {
     buildFile.appendText(
       """
       configure<CheckerFrameworkExtension> {
@@ -65,7 +65,7 @@ class CfPluginFunctionalTest : AbstractPluginFunctionalTest() {
     testProjectDir.writeEmptyClass()
 
     // when
-    val result = testProjectDir.buildWithArgs("compileJava", "-PcfVersion=disable")
+    val result = testProjectDir.buildWithArgs("compileJava", "-PskipCheckerFramework")
 
     // then
     assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
@@ -73,11 +73,12 @@ class CfPluginFunctionalTest : AbstractPluginFunctionalTest() {
   }
 
   @Test
-  fun `test disable configure`() {
+  fun `test skipCheckerFramework configure`() {
     buildFile.appendText(
       """
       configure<CheckerFrameworkExtension> {
-        version = "disable"
+        version = "$TEST_CF_VERSION"
+        skipCheckerFramework = true
         checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
         extraJavacArgs = listOf("-Aversion")
       }

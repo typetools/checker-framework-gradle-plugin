@@ -32,4 +32,7 @@ abstract class CheckerFrameworkExtension {
    * (Defaults to true.)
    */
   abstract val incrementalize: Property<Boolean>
+
+  /** If true, do not run the Checker Framework. (Defaults to false.) */
+  abstract val skipCheckerFramework: Property<Boolean>
 }

@@ -2,6 +2,7 @@ package org.checkerframework.plugin.gradle
 
 import com.google.common.truth.Truth.assertThat
 import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 
 class OtherPluginsFunctionalTest : AbstractPluginFunctionalTest() {
@@ -57,6 +58,7 @@ class OtherPluginsFunctionalTest : AbstractPluginFunctionalTest() {
     }
   }
 
+  @Disabled // Crashes see https://github.com/kelloggm/checkerframework-gradle-plugin/issues/316.
   @Test
   fun `test lombok latest`() {
     buildFile.appendText(
