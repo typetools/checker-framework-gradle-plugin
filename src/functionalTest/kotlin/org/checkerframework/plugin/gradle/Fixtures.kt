@@ -15,7 +15,7 @@ fun File.writeEmptyClass() {
     writeText(
       """
       package test;
-
+      import org.checkerframework.checker.nullness.qual.Nullable;
       public class Success {
       }
       """
@@ -30,7 +30,7 @@ fun File.writeTestClass() {
     writeText(
       """
       package test;
-
+      import org.checkerframework.checker.nullness.qual.Nullable;
       public class Test {
       }
       """
@@ -47,7 +47,7 @@ fun File.writeNullnessFailure() {
     writeText(
       """
       package test;
-
+      import org.checkerframework.checker.nullness.qual.Nullable;
       public class Failure {
         void method() {
           String a = null;

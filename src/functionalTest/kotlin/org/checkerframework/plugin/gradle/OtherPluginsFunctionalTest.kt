@@ -91,6 +91,39 @@ class OtherPluginsFunctionalTest : AbstractPluginFunctionalTest() {
   }
 
   @Test
+  fun `test disabling CF with lombok `() {
+    buildFile.appendText(
+      """
+       plugins {
+          `java-library`
+          id("org.checkerframework")
+          id("io.freefair.lombok").version("9.2.0")
+      }
+      
+      configure<CheckerFrameworkExtension> {
+        version = "$TEST_CF_VERSION"
+        checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+        extraJavacArgs = listOf("-Aversion")
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeLombokExample()
+
+    // when
+    val result = testProjectDir.buildWithArgsAndFail("build", "-PcfVersion=disable")
+
+    // then
+    assertThat(result.output)
+      .contains(
+        "User.java:9: error: [argument] incompatible argument for parameter y of FooBuilder.y."
+      )
+    assertThat(result.output)
+      .contains("Foo.java:12: error: [assignment] incompatible types in assignment.")
+  }
+
+  @Test
   fun `test errorprone latest`() {
     val majorVersion = Runtime.version().feature()
     if (majorVersion < 21) {

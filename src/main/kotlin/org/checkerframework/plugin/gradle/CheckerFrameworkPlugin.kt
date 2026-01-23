@@ -127,14 +127,19 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
         throw IllegalStateException("Must specify checkers for the Checker Framework.")
       }
     }
+    // Handle Lombok
     project.pluginManager.withPlugin("io.freefair.lombok") {
       val javaPluginExtension: JavaPluginExtension =
         project.getExtensions().getByType(JavaPluginExtension::class.java)
-      javaPluginExtension.sourceSets.forEach { s -> configureSourceSetDefaults(s, project) }
+      javaPluginExtension.sourceSets.forEach { s -> addCheckerTasks(s, project) }
     }
   }
 
-  private fun configureSourceSetDefaults(sourceSet: SourceSet, project: Project) {
+  /**
+   * Adds a checkerCompileJava task, for the given source set, that copy the compileJava test, but
+   * changes the source to the result of the delombok tast.
+   */
+  private fun addCheckerTasks(sourceSet: SourceSet, project: Project) {
 
     val checkerTaskProvider: TaskProvider<JavaCompile> =
       project.tasks.register(
