@@ -55,10 +55,8 @@ Checker Framework to use.
 The special value **"local"** means to use a locally-built version of the Checker
 Framework, found at environment variable `$CHECKERFRAMEWORK`.
 
-The special value **"disable"** means not to use the Checker Framework.
-
 The command-line argument **`-PcfVersion=...`** (where "..." is a version number,
-"local", or "disable") overrides settings in gradle buildfiles.
+"local") overrides settings in gradle buildfiles.
 
 #### Checker Framework jar files
 
@@ -154,11 +152,11 @@ In your build file:
 
 ```groovy
 checkerFramework {
-  version = "disable"
+  skipCheckerFramework = true
 }
 ```
 
-From the command line, add `-PcfVersion=disable` to your gradle invocation.
+From the command line, add `-PskipCheckerFramework` to your gradle invocation.
 
 ### Disabling the Checker Framework for tests
 
@@ -323,32 +321,6 @@ you need to make some changes in order to use version 1.x.
    ```
 
 3. These options have been removed:
-   * **`skipCheckerFramework`**:  Set the version to `"disable"` to skip the Checker
-     Framework.  For example, change command-line argument
-     `-PskipCheckerFramework` to `-PcfVersion=disable`, or change
-
-     ```groovy
-     checkerFramework {
-       skipCheckerFramework = true
-     }
-     ```
-
-     to
-
-     ```groovy
-     checkerFramework {
-       version = "disable"
-     }
-     ```
-
-     Setting the version to "disable" causes the Checker Framework not to be run
-     at all.  You can also [disable the checker framework for a specific
-     task](#disabling-the-checker-framework-for-a-specific-compile-task).
-
-   * **`cfLocal`**: Set the version to `"local"` to use a locally-built version
-     of the Checker Framework.  Change command-line argument
-     `-PcfLocal` to `-PcfVersion=local`.
-
    * **`suppressLombokWarnings`**: Use [Lombok options](#lombok-compatibility)
      to configure interaction with Lombok.
 
@@ -361,6 +333,10 @@ you need to make some changes in order to use version 1.x.
        skipVersionCheck = true
      }
      ```
+     
+   * **`cfLocal`**: Set the version to `"local"` to use a locally-built version
+     of the Checker Framework.  Change command-line argument
+     `-PcfLocal` to `-PcfVersion=local`.
 
 4. If you want to use a non-standard Checker Framework jar file (such as that of
     eisop) see [Checker Framework jar files](#checker-framework-jar-files).
