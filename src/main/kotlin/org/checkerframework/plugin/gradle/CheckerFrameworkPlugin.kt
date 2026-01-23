@@ -12,6 +12,8 @@ import org.gradle.api.tasks.SourceSetContainer
 import org.gradle.api.tasks.TaskProvider
 import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.kotlin.dsl.getByName
+import org.gradle.kotlin.dsl.named
+import org.gradle.kotlin.dsl.register
 import org.gradle.kotlin.dsl.withType
 import org.gradle.process.CommandLineArgumentProvider
 import org.gradle.util.GradleVersion
@@ -67,11 +69,29 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
     val cfManifestDir = project.layout.buildDirectory.dir("checkerframework")
 
     project.tasks.register("writeCheckerManifest", WriteCheckerManifestTask::class.java) {
-      group = "CheckerFramework"
+      group = "Checker Framework tasks"
       checkers.set(cfExtension.checkers)
       incrementalize.set(cfExtension.incrementalize)
       cfBuildDir.set(cfManifestDir)
     }
+
+    val cfCompileJava =
+      project.tasks.register<JavaCompile>("cfCompileJava") {
+        group = "Checker Framework tasks"
+
+        description = "Runs the Checker Framework on the result of delomboking the source code"
+
+        val originalCompileJava = project.tasks.named<JavaCompile>("compileJava").get()
+
+        // Copy properties from the original task
+        classpath = originalCompileJava.classpath
+        destinationDirectory.set(project.layout.buildDirectory.dir("checkerFrameworkClasses"))
+        options.compilerArgs = originalCompileJava.options.compilerArgs
+        options.annotationProcessorPath = originalCompileJava.options.annotationProcessorPath
+        // The sources is reset if lombok is added.
+        source(originalCompileJava.source())
+      }
+    project.tasks.named("build").get().dependsOn(cfCompileJava)
 
     project.tasks.withType<JavaCompile>().configureEach {
       val cfCompileOptions =
@@ -129,24 +149,27 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
 
       // Handle Lombok
       project.pluginManager.withPlugin("io.freefair.lombok") {
-        // Find the delombok task that delomboks the code for this JavaCompile task.
-        val delombokTaskProvider: TaskProvider<Task> =
-          if (compileTaskName == "compileJava") {
-            project.tasks.named("delombok")
-          } else {
-            val sourceSetName =
-              compileTaskName.substring("compile".length, compileTaskName.length - "Java".length)
-            project.tasks.named("delombok$sourceSetName")
-          }
+        if (!compileTaskName.equals("cfCompileJava")) {
+          // Find the delombok task that delomboks the code for this JavaCompile task.
+          val delombokTaskProvider: TaskProvider<Task> =
+            if (compileTaskName == "compileJava") {
+              project.tasks.named("delombok")
+            } else {
+              val sourceSetName =
+                compileTaskName.substring("compile".length, compileTaskName.length - "Java".length)
+              project.tasks.named("delombok$sourceSetName")
+            }
 
-        if (delombokTaskProvider.isPresent) {
-          val delombokTask = delombokTaskProvider.get()
-          dependsOn.add(delombokTask)
-          // The lombok plugin's default formatting is pretty-printing, without the @Generated
-          // annotations that we need to recognize lombok'd code.
-          delombokTask.extensions.add("generated", "generate")
-          // Set the sources to the delomboked code.
-          source = delombokTask.outputs.files.asFileTree
+          if (delombokTaskProvider.isPresent) {
+            val delombokTask = delombokTaskProvider.get()
+            //              dependsOn.add(delombokTask)
+            // The lombok plugin's default formatting is pretty-printing, without the @Generated
+            // annotations that we need to recognize lombok'd code.
+            delombokTask.extensions.add("generated", "generate")
+            // Set the sources to the delomboked code.
+            //              source = delombokTask.outputs.files.asFileTree
+            cfCompileJava.get().source(delombokTask.outputs.files.asFileTree)
+          }
         }
       }
     }
