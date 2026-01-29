@@ -198,8 +198,8 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
    *
    * @param cfExtension CF configuration
    * @param project current project
-   * @return the version configuration value, which is a Checker Framework version,
-   *   "local", or "dependencies".
+   * @return the version configuration value, which is a Checker Framework version, "local", or
+   *   "dependencies".
    */
   private fun getCFVersion(cfExtension: CheckerFrameworkExtension, project: Project): String {
     if (project.hasProperty("cfVersion")) {
