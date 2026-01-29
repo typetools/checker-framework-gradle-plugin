@@ -52,11 +52,11 @@ Checker Framework to use.
   }
   ```
 
-The special value **"local"** means to use a locally-built version of the Checker
-Framework, found at environment variable `$CHECKERFRAMEWORK`.
+The special value **"local"** means to use a locally-built version of the
+Checker Framework, found at environment variable `$CHECKERFRAMEWORK`.
 
-The command-line argument **`-PcfVersion=...`** (where "..." is a version number,
-"local") overrides settings in gradle buildfiles.
+The command-line argument **`-PcfVersion=...`** (where "..." is a version number
+or "local") overrides settings in gradle buildfiles.
 
 #### Checker Framework jar files
 
@@ -335,8 +335,9 @@ you need to make some changes in order to use version 1.x.
      ```
 
    * **`cfLocal`**: Set the version to `"local"` to use a locally-built version
-     of the Checker Framework.  Change command-line argument
-     `-PcfLocal` to `-PcfVersion=local`.
+     of the Checker Framework.  Change command-line argument `-PcfLocal` to
+     `-PcfVersion=local`.  (Note: The `cfLocal` functionality was not an
+     official part of the plugin, but a number of projects use it.)
 
 4. If you want to use a non-standard Checker Framework jar file (such as that of
     eisop) see [Checker Framework jar files](#checker-framework-jar-files).
