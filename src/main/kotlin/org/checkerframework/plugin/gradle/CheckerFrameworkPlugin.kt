@@ -79,10 +79,17 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
           .extensions
           .create("checkerFrameworkCompile", CheckerFrameworkCompileExtension::class.java)
 
+      // If the user passes -PskipCheckerFramework, then use that value rather than the value from
+      // the configuration.
+      val skipCf =
+        if (project.hasProperty("skipCheckerFramework")) {
+          !(project.properties["skipCheckerFramework"]?.toString() ?: "false").equals("false")
+        } else {
+          cfExtension.skipCheckerFramework.getOrElse(false)
+        }
+
       if (
-        cfExtension.skipCheckerFramework.getOrElse(false) ||
-          (project.hasProperty("skipCheckerFramework") ||
-            !(project.properties["skipCheckerFramework"]?.toString() ?: "false").equals("false")) ||
+        skipCf ||
           !cfCompileOptions.enabled.getOrElse(true) ||
           (cfExtension.excludeTests.getOrElse(false) && isTestName(name))
       ) {
