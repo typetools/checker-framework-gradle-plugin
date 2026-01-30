@@ -157,7 +157,8 @@ checkerFramework {
 ```
 
 From the command line, add `-PskipCheckerFramework` to your gradle invocation. You can also pass 
-`-PskipCheckerFramework` to enable the Checker Framework even if the configuration has `skipCheckerFramework = true`.
+`-PskipCheckerFramework=false` to enable the Checker Framework even if the configuration has 
+`skipCheckerFramework = true`.
 
 ### Disabling the Checker Framework for tests
 
