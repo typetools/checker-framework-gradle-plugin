@@ -138,7 +138,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
   }
 
   /**
-   * Adds a checkerCompileJava task, for the given source set, that copies the compileJava test, but
+   * Adds a checkerCompileJava task, for the given source set, that copies the compileJava task, but
    * changes the source to the result of the delombok task.
    */
   private fun addCheckerTasks(sourceSet: SourceSet, project: Project) {
