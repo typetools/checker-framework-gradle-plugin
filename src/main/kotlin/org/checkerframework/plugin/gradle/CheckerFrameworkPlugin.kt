@@ -133,19 +133,19 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
     project.pluginManager.withPlugin("io.freefair.lombok") {
       val javaPluginExtension: JavaPluginExtension =
         project.getExtensions().getByType(JavaPluginExtension::class.java)
-      javaPluginExtension.sourceSets.forEach { s -> addCheckerTasks(s, project) }
+      javaPluginExtension.sourceSets.configureEach { addCheckDelombokTasks(this, project) }
     }
   }
 
   /**
-   * Adds a checkerCompileJava task, for the given source set, that copies the compileJava task, but
-   * changes the source to the result of the delombok task.
+   * Adds a checkDelombokCompileJava task, for the given source set, that copies the compileJava
+   * task, but changes the source to the result of the delombok task.
    */
-  private fun addCheckerTasks(sourceSet: SourceSet, project: Project) {
+  private fun addCheckDelombokTasks(sourceSet: SourceSet, project: Project) {
 
     val checkerTaskProvider: TaskProvider<JavaCompile> =
       project.tasks.register(
-        sourceSet.getTaskName("checker", "CompileJava"),
+        sourceSet.getTaskName("checkDelombok", "CompileJava"),
         JavaCompile::class.java,
       )
 
@@ -162,18 +162,20 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
       checkerTask.group = "Checker Framework tasks"
       checkerTask.description =
         "Runs the Checker Framework on the result of delomboking the source code"
-      checkerTask.classpath = compileTask.classpath
+      // The lombok plugin's default formatting is pretty-printing, without the @Generated
+      // annotations that we need to recognize lombok'd code.
       delombokTask.extensions.add("generated", "generate")
       // Set the sources to the delomboked code.
       checkerTask.source(delombokTask.outputs.files.asFileTree)
+
       // Copy properties from the original task
       checkerTask.classpath = compileTask.classpath
       checkerTask.destinationDirectory.set(
-        project.layout.buildDirectory.dir("checkerFrameworkClasses")
+        project.layout.buildDirectory.dir(sourceSet.getTaskName("checkerFramework", "Classes"))
       )
-      checkerTask.options.compilerArgs = compileTask.options.compilerArgs
+      checkerTask.options.compilerArgs = ArrayList(compileTask.options.compilerArgs)
       checkerTask.options.annotationProcessorPath = compileTask.options.annotationProcessorPath
-      project.tasks.named("build").get().dependsOn(checkerTask)
+      project.tasks.named("build").configure { dependsOn(checkerTask) }
     }
   }
 
