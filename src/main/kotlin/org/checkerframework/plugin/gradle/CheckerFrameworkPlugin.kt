@@ -158,9 +158,9 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
 
     sourceSet.getExtensions().add("checkerTask", checkerTaskProvider)
     val compileTaskProvider: TaskProvider<JavaCompile> =
-      project.getTasks().named(sourceSet.getCompileJavaTaskName(), JavaCompile::class.java, {})
+      project.getTasks().named(sourceSet.getCompileJavaTaskName(), JavaCompile::class.java)
     val delombokTaskProvider: TaskProvider<Task> =
-      project.getTasks().named(sourceSet.getTaskName("delombok", ""), Task::class.java, {})
+      project.getTasks().named(sourceSet.getTaskName("delombok", ""), Task::class.java)
 
     project.afterEvaluate {
       val delombokTask = delombokTaskProvider.get()
