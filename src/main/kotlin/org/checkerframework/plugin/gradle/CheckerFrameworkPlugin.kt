@@ -136,6 +136,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
         throw IllegalStateException("Must specify checkers for the Checker Framework.")
       }
     }
+
     // Handle Lombok
     project.pluginManager.withPlugin("io.freefair.lombok") {
       val javaPluginExtension: JavaPluginExtension =
