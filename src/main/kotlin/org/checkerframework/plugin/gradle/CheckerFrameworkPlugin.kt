@@ -140,7 +140,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
     project.pluginManager.withPlugin("io.freefair.lombok") {
       val javaPluginExtension: JavaPluginExtension =
         project.getExtensions().getByType(JavaPluginExtension::class.java)
-      javaPluginExtension.sourceSets.configureEach { addCheckDelombokTasks(this, project) }
+      javaPluginExtension.sourceSets.configureEach { addCheckDelombokTask(this, project) }
     }
   }
 
@@ -148,7 +148,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
    * Adds a checkDelombokCompileJava task, for the given source set, that copies the compileJava
    * task, but changes the source to the result of the delombok task.
    */
-  private fun addCheckDelombokTasks(sourceSet: SourceSet, project: Project) {
+  private fun addCheckDelombokTask(sourceSet: SourceSet, project: Project) {
 
     val checkerTaskProvider: TaskProvider<JavaCompile> =
       project.tasks.register(
