@@ -85,7 +85,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
       // the configuration.
       val skipCf =
         if (project.hasProperty("skipCheckerFramework")) {
-          !(project.properties["skipCheckerFramework"]?.toString() ?: "false").equals("false")
+          (project.properties["skipCheckerFramework"]?.toString() ?: "false") != "false"
         } else {
           cfExtension.skipCheckerFramework.getOrElse(false)
         }
@@ -121,9 +121,9 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
             // not work, so add the checkers to the list of processors.
             // This can't be done in CheckerFrameworkCompilerArgumentProvider because it modifies
             // existing arguments rather than adding a new one.
-            val oldProcessors = options.compilerArgs.get(processorArgIndex + 1)
+            val oldProcessors = options.compilerArgs[processorArgIndex + 1]
             val cfProcessors = checkers.joinToString(separator = ",")
-            options.compilerArgs.set(processorArgIndex + 1, "$oldProcessors,$cfProcessors")
+            options.compilerArgs[processorArgIndex + 1] = "$oldProcessors,$cfProcessors"
           } else if (processorArgIndex != -1) {
             project.logger.warn(
               "Found -processor argument without a value; no checkers will be used."
@@ -139,7 +139,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
     // Handle Lombok
     project.pluginManager.withPlugin("io.freefair.lombok") {
       val javaPluginExtension: JavaPluginExtension =
-        project.getExtensions().getByType(JavaPluginExtension::class.java)
+        project.extensions.getByType(JavaPluginExtension::class.java)
       javaPluginExtension.sourceSets.configureEach { addCheckDelombokTasks(this, project) }
     }
   }
@@ -156,11 +156,11 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
         JavaCompile::class.java,
       )
 
-    sourceSet.getExtensions().add("checkerTask", checkerTaskProvider)
+    sourceSet.extensions.add("checkerTask", checkerTaskProvider)
     val compileTaskProvider: TaskProvider<JavaCompile> =
-      project.getTasks().named(sourceSet.getCompileJavaTaskName(), JavaCompile::class.java)
+      project.tasks.named(sourceSet.compileJavaTaskName, JavaCompile::class.java)
     val delombokTaskProvider: TaskProvider<Task> =
-      project.getTasks().named(sourceSet.getTaskName("delombok", ""), Task::class.java)
+      project.tasks.named(sourceSet.getTaskName("delombok", ""), Task::class.java)
 
     project.afterEvaluate {
       val delombokTask = delombokTaskProvider.get()
@@ -201,25 +201,28 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
     isCanBeConsumed = false
     isCanBeResolved = false
     defaultDependencies {
-      val version = getCFVersion(cfExtension, project)
-      if (version == "local") {
-        val cfHome =
-          System.getenv("CHECKERFRAMEWORK")
-            ?: throw IllegalStateException(
-              "CHECKERFRAMEWORK environment variable must be set when using local version"
+      when (val version = getCFVersion(cfExtension, project)) {
+        "local" -> {
+          val cfHome =
+            System.getenv("CHECKERFRAMEWORK")
+              ?: throw IllegalStateException(
+                "CHECKERFRAMEWORK environment variable must be set when using local version"
+              )
+          val jarFile = File("$cfHome/checker/dist/$jarName.jar")
+          if (!jarFile.exists()) {
+            throw IllegalStateException(
+              "Could not find $jarName at ${jarFile.absolutePath}. " +
+                "Please ensure the Checker Framework is built."
             )
-        val jarFile = File("$cfHome/checker/dist/$jarName.jar")
-        if (!jarFile.exists()) {
-          throw IllegalStateException(
-            "Could not find $jarName at ${jarFile.absolutePath}. " +
-              "Please ensure the Checker Framework is built."
-          )
+          }
+          add(project.dependencies.create(project.files(jarFile)))
         }
-        add(project.dependencies.create(project.files(jarFile)))
-      } else if (version == "dependencies") {
-        // Don't add dependencies.
-      } else {
-        add(project.dependencies.create("org.checkerframework:$jarName:$version"))
+        "dependencies" -> {
+          // Don't add dependencies.
+        }
+        else -> {
+          add(project.dependencies.create("org.checkerframework:$jarName:$version"))
+        }
       }
     }
   }
