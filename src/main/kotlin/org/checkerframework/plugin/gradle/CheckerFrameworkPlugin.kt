@@ -136,11 +136,12 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
         throw IllegalStateException("Must specify checkers for the Checker Framework.")
       }
     }
+
     // Handle Lombok
     project.pluginManager.withPlugin("io.freefair.lombok") {
       val javaPluginExtension: JavaPluginExtension =
         project.extensions.getByType(JavaPluginExtension::class.java)
-      javaPluginExtension.sourceSets.configureEach { addCheckDelombokTasks(this, project) }
+      javaPluginExtension.sourceSets.configureEach { addCheckDelombokTask(this, project) }
     }
   }
 
@@ -148,7 +149,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
    * Adds a checkDelombokCompileJava task, for the given source set, that copies the compileJava
    * task, but changes the source to the result of the delombok task.
    */
-  private fun addCheckDelombokTasks(sourceSet: SourceSet, project: Project) {
+  private fun addCheckDelombokTask(sourceSet: SourceSet, project: Project) {
 
     val checkerTaskProvider: TaskProvider<JavaCompile> =
       project.tasks.register(
@@ -172,8 +173,10 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
       // The lombok plugin's default formatting is pretty-printing, without the @Generated
       // annotations that we need to recognize lombok'd code.
       delombokTask.extensions.add("generated", "generate")
+
       // Set the sources to the delomboked code.
       checkerTask.source(delombokTask.outputs.files.asFileTree)
+      checkerTask.dependsOn(delombokTask)
 
       // Copy properties from the original task
       checkerTask.classpath = compileTask.classpath
