@@ -173,7 +173,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
       // The lombok plugin's default formatting is pretty-printing, without the @Generated
       // annotations that we need to recognize lombok'd code.
       delombokTask.extensions.add("generated", "generate")
-      // Set the sources to the delomboked code.
+
       // Set the sources to the delomboked code.
       checkerTask.source(delombokTask.outputs.files.asFileTree)
       checkerTask.dependsOn(delombokTask)
