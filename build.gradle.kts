@@ -18,9 +18,8 @@ publishing { repositories { mavenLocal() } }
 dependencies { implementation(kotlin("stdlib")) }
 
 gradlePlugin {
-  // TODO: Update the URLs.
-  website.set("https://github.com/kelloggm/checkerframework-gradle-plugin/blob/master/README.md")
-  vcsUrl.set("https://github.com/kelloggm/checkerframework-gradle-plugin")
+  website.set("https://github.com/typetools/checkerframework-gradle-plugin/blob/master/README.md")
+  vcsUrl.set("https://github.com/typetools/checkerframework-gradle-plugin")
   plugins {
     register("checkerframework") {
       id = "org.checkerframework"
