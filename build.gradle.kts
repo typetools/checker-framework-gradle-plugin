@@ -8,7 +8,7 @@ plugins {
 
 group = "org.checkerframework"
 
-version = "1.0.0"
+version = "1.0.1"
 
 repositories { mavenCentral() }
 
@@ -36,6 +36,8 @@ gradlePlugin {
     }
   }
 }
+
+kotlin { jvmToolchain(17) }
 
 testing {
   suites {
