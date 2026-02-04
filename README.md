@@ -186,9 +186,7 @@ tasks.withType(JavaCompile).configureEach {
   // Don't run the checker on generated code.
   if (name.equals("compileMainGeneratedDataTemplateJava")
       || name.equals("compileMainGeneratedRestJava")) {
-    checkerFramework {
-      enabled = false
-    }
+    options.checkerFrameworkCompile.enabled = false
   }
 }
 ```
