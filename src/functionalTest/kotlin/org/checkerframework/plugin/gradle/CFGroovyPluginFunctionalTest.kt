@@ -51,7 +51,7 @@ class CFGroovyPluginFunctionalTest : GroovyPluginFunctionalTest() {
   fun `test excludeTestsTrue`() {
     buildFile.appendText(
       """
-                compileTestJava{}
+       compileTestJava{}
 
       checkerFramework {
         version = "$TEST_CF_VERSION"
@@ -73,6 +73,7 @@ class CFGroovyPluginFunctionalTest : GroovyPluginFunctionalTest() {
 
     assertThat(result.task(":compileTestJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
     assertThat(result.output).containsMatch("Note: TaintingChecker is type-checking .*Success.java")
-    assertThat(result.output).doesNotContain("Note: TaintingChecker is type-checking .*Test.java")
+    assertThat(result.output)
+      .doesNotContainMatch("Note: TaintingChecker is type-checking .*Test.java")
   }
 }

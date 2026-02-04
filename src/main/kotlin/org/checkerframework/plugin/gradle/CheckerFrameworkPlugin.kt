@@ -104,6 +104,13 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
       options.compilerArgumentProviders.add(CheckerFrameworkCompilerArgumentProvider(cfExtension))
       options.forkOptions.jvmArgumentProviders.add(CheckerFrameworkJvmArgumentProvider())
       doFirst {
+        if (
+          skipCf ||
+            !cfCompileOptions.enabled.getOrElse(true) ||
+            (cfExtension.excludeTests.getOrElse(false) && isTestName(name))
+        ) {
+          return@doFirst
+        }
         if (cfExtension.checkers.isPresent) {
           val checkers = cfExtension.checkers.get()
           if (checkers.isEmpty()) {
@@ -252,7 +259,8 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
 
   /** Return true if the Name is a test name. */
   private fun isTestName(taskName: String): Boolean {
-    return taskName.matches(Regex("(T|(^|[A-Z_])t)est($|[A-Z_])"))
+    println("#$taskName#")
+    return taskName.matches(Regex(".*(T|(^|[A-Z_])t)est.*"))
   }
 
   /** Provides extraJavacArgs to the compiler. */
