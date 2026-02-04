@@ -483,6 +483,5 @@ class CfPluginFunctionalTest : KotlinPluginFunctionalTest() {
 
     assertThat(result.task(":compileTestJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
     assertThat(result.output).containsMatch("Note: TaintingChecker is type-checking .*Success.java")
-    assertThat(result.output).doesNotContain("Note: TaintingChecker is type-checking .*Test.java")
   }
 }
