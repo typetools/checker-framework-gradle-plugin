@@ -5,7 +5,8 @@ import java.util.Properties
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.io.TempDir
 
-abstract class AbstractPluginFunctionalTest {
+/** Abstract class that sets up a project using Groovy. */
+abstract class GroovyPluginFunctionalTest {
   @TempDir lateinit var testProjectDir: File
   lateinit var settingsFile: File
   lateinit var buildFile: File
@@ -18,15 +19,7 @@ abstract class AbstractPluginFunctionalTest {
         store(it, null)
       }
     }
-    settingsFile = testProjectDir.resolve("settings.gradle.kts").apply { createNewFile() }
-    buildFile =
-      testProjectDir.resolve("build.gradle.kts").apply {
-        writeText(
-          """
-          import org.checkerframework.plugin.gradle.*
-          """
-            .trimIndent()
-        )
-      }
+    settingsFile = testProjectDir.resolve("settings.gradle").apply { createNewFile() }
+    buildFile = testProjectDir.resolve("build.gradle").apply { createNewFile() }
   }
 }

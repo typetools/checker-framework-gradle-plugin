@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test
 
 const val TEST_CF_VERSION = "3.53.0"
 
-class CfPluginFunctionalTest : AbstractPluginFunctionalTest() {
+class CfPluginFunctionalTest : KotlinPluginFunctionalTest() {
   @BeforeEach
   fun setup() {
     buildFile.appendText(
@@ -483,5 +483,7 @@ class CfPluginFunctionalTest : AbstractPluginFunctionalTest() {
 
     assertThat(result.task(":compileTestJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
     assertThat(result.output).containsMatch("Note: TaintingChecker is type-checking .*Success.java")
+    assertThat(result.output)
+      .doesNotContainMatch("Note: TaintingChecker is type-checking .*Test.java")
   }
 }

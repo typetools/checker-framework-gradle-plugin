@@ -5,7 +5,7 @@ import org.gradle.testkit.runner.TaskOutcome
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 
-class OtherPluginsFunctionalTest : AbstractPluginFunctionalTest() {
+class OtherPluginsFunctionalTest : KotlinPluginFunctionalTest() {
   @BeforeEach
   fun setup() {
     buildFile.appendText(
