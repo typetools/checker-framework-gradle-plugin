@@ -25,7 +25,7 @@ fun File.writeEmptyClass() {
 }
 
 fun File.writeTestClass() {
-  File(this.resolve("src/test/java/test").apply { mkdirs() }, "Test.java").apply {
+  File(this.resolve("src/test/java").apply { mkdirs() }, "Test.java").apply {
     createNewFile()
     writeText(
       """

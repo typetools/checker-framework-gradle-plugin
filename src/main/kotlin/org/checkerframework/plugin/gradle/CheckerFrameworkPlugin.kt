@@ -103,18 +103,17 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
       // Framework options, i.e. options.compilerArgs = [...].
       options.compilerArgumentProviders.add(CheckerFrameworkCompilerArgumentProvider(cfExtension))
       options.forkOptions.jvmArgumentProviders.add(CheckerFrameworkJvmArgumentProvider())
+      doFirst {
+        if (cfExtension.checkers.isPresent) {
+          val checkers = cfExtension.checkers.get()
+          if (checkers.isEmpty()) {
+            throw IllegalStateException("Must specify checkers for the Checker Framework.")
+          }
+          // If the annotationProcessorPath is null, then annotation processing is disabled, so no
+          // need to add things to the path.
+          options.annotationProcessorPath =
+            options.annotationProcessorPath?.plus(project.files(cfManifestDir))
 
-      if (cfExtension.checkers.isPresent) {
-        val checkers = cfExtension.checkers.get()
-        if (checkers.isEmpty()) {
-          throw IllegalStateException("Must specify checkers for the Checker Framework.")
-        }
-        // If the annotationProcessorPath is null, then annotation processing is disabled, so no
-        // need to add things to the path.
-        options.annotationProcessorPath =
-          options.annotationProcessorPath?.plus(project.files(cfManifestDir))
-
-        doFirst {
           val processorArgIndex = options.compilerArgs.indexOf("-processor")
           if (processorArgIndex != -1 && processorArgIndex + 1 < options.compilerArgs.size) {
             // Because the user already passed -processor as a compiler arg, auto discovery will
@@ -131,9 +130,9 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
           }
           // Must fork for the JVM arguments to be applied.
           options.isFork = true
+        } else {
+          throw IllegalStateException("Must specify checkers for the Checker Framework.")
         }
-      } else {
-        throw IllegalStateException("Must specify checkers for the Checker Framework.")
       }
     }
 
