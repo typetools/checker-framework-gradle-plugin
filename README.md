@@ -29,11 +29,11 @@ You must specify which
 [version](https://github.com/typetools/checker-framework/releases) of the
 Checker Framework to use.
 
-* The recommended way is to modify two files.  Add this to `build.gradle`:
+* The Gradle developers recommend to modify two files.  Add this to `build.gradle`:
 
   ```groovy
   checkerFramework {
-    version = libs.checker.get().version
+    version = libs.checker.framework.get().version
   }
   ```
 
@@ -41,7 +41,7 @@ Checker Framework to use.
 
   ```toml
   [libraries]
-  checker = "org.checkerframework:checker:3.53.1"
+  checker-framework = "org.checkerframework:checker:3.53.1"
   ```
 
 * Alternately, you can edit just one file.  Add this to `build.gradle`:
