@@ -496,13 +496,16 @@ class CfPluginFunctionalTest : KotlinPluginFunctionalTest() {
         checkers = listOf("org.checkerframework.checker.tainting.TaintingChecker")
         excludeTests = true
       }
-      tasks.register("printTestConfigurations") {
-        val processorExtendsFrom =
-          configurations["testAnnotationProcessor"].extendsFrom.map { it.name }
-        val implementationExtendsFrom = configurations["testImplementation"].extendsFrom.map { it.name }
+      tasks.register("printCFConfigurations") {
+        // Only the annotation processor path is examined. checker-qual is on the test compile
+        // classpath no matter what `excludeTests` says, because testImplementation extends the
+        // main source set's implementation configuration.
+        val mainProcessorPath = configurations["annotationProcessor"]
+        val testProcessorPath = configurations["testAnnotationProcessor"]
+        val hasChecker = { c: Configuration -> c.files.any { it.name.startsWith("checker-3") } }
         doLast {
-          println("test uses checkerFramework: " + processorExtendsFrom.contains("checkerFramework"))
-          println("test uses checkerQual: " + implementationExtendsFrom.contains("checkerQual"))
+          println("MAIN_HAS_CF=" + hasChecker(mainProcessorPath))
+          println("TEST_HAS_CF=" + hasChecker(testProcessorPath))
         }
       }
       """
@@ -512,11 +515,43 @@ class CfPluginFunctionalTest : KotlinPluginFunctionalTest() {
     testProjectDir.writeEmptyClass()
 
     // when
-    val result = testProjectDir.buildWithArgs("printTestConfigurations")
+    val result = testProjectDir.buildWithArgs("printCFConfigurations")
 
     // then
-    assertThat(result.output).contains("test uses checkerFramework: false")
-    assertThat(result.output).contains("test uses checkerQual: false")
+    assertThat(result.output).contains("MAIN_HAS_CF=true")
+    assertThat(result.output).contains("TEST_HAS_CF=false")
+  }
+
+  @Test
+  fun `test dependencies that the checkerFramework configuration inherits are used for tests`() {
+    buildFile.appendText(
+      """
+      val cfParent by configurations.creating
+      configurations["checkerFramework"].extendsFrom(cfParent)
+      dependencies {
+        cfParent("org.checkerframework:checker:$TEST_CF_VERSION")
+        checkerQual("org.checkerframework:checker-qual:$TEST_CF_VERSION")
+      }
+      configure<CheckerFrameworkExtension> {
+        // No dependency is added by default, so the only checker.jar is the inherited one.
+        version = "dependencies"
+        checkers = listOf("org.checkerframework.checker.tainting.TaintingChecker")
+        extraJavacArgs = listOf("-Afilenames")
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+    testProjectDir.writeTestClass()
+
+    // when
+    val result = testProjectDir.buildWithArgs("compileTestJava")
+
+    // then
+    assertThat(result.task(":compileTestJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(result.output).containsMatch("Note: TaintingChecker is type-checking .*Success.java")
+    assertThat(result.output).containsMatch("Note: TaintingChecker is type-checking .*Test.java")
   }
 
   @Test

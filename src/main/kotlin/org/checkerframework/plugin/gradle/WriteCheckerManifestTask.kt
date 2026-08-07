@@ -1,6 +1,7 @@
 package org.checkerframework.plugin.gradle
 
 import java.io.File
+import java.io.IOException
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.provider.ListProperty
@@ -24,29 +25,44 @@ abstract class WriteCheckerManifestTask : DefaultTask() {
   @TaskAction
   fun run() {
     val cfBuildDirAsFile = cfBuildDir.get().asFile
-    // Discard files written by a previous run, which might no longer be desired; for example,
-    // incremental.annotation.processors must not exist when `incrementalize` is false.
+    // Discard files written by a previous run, which might no longer be desired.
+    // deleteRecursively() is best-effort: it returns false, rather than throwing, if it does not
+    // delete everything. A failure is not reported here, because every file that this run should
+    // produce is overwritten below and every file that this run must not leave behind is deleted
+    // by deleteManifestFile, which does report a failure.
     cfBuildDirAsFile.deleteRecursively()
-    cfBuildDirAsFile.mkdirs()
-    if (checkers.get().isEmpty()) {
-      // No need to write the files if no checkers are specified.
-      return
+    if (!cfBuildDirAsFile.isDirectory && !cfBuildDirAsFile.mkdirs()) {
+      throw IOException("Could not create directory $cfBuildDirAsFile")
     }
     // https://checkerframework.org/manual/#checker-auto-discovery
-    writeManifestFile(
-      cfBuildDirAsFile,
-      checkers.get(),
-      "META-INF/services/javax.annotation.processing.Processor",
-      "\n",
-    )
+    val processorFileName = "META-INF/services/javax.annotation.processing.Processor"
+    // https://docs.gradle.org/current/userguide/java_plugin.html#sec:incremental_annotation_processing
+    val incrementalFileName = "META-INF/gradle/incremental.annotation.processors"
+    val checkerNames = checkers.get()
+    if (checkerNames.isEmpty()) {
+      // No need to write the files if no checkers are specified.
+      deleteManifestFile(cfBuildDirAsFile, processorFileName)
+      deleteManifestFile(cfBuildDirAsFile, incrementalFileName)
+      return
+    }
+    writeManifestFile(cfBuildDirAsFile, checkerNames, processorFileName, "\n")
     if (incrementalize.getOrElse(true)) {
-      // https://docs.gradle.org/current/userguide/java_plugin.html#sec:incremental_annotation_processing
-      writeManifestFile(
-        cfBuildDirAsFile,
-        checkers.get(),
-        "META-INF/gradle/incremental.annotation.processors",
-        ",isolating\n",
-      )
+      writeManifestFile(cfBuildDirAsFile, checkerNames, incrementalFileName, ",isolating\n")
+    } else {
+      deleteManifestFile(cfBuildDirAsFile, incrementalFileName)
+    }
+  }
+
+  /**
+   * Deletes a manifest file that must not exist when this task completes; for example,
+   * incremental.annotation.processors must not exist when `incrementalize` is false. Throws an
+   * exception if the file exists and cannot be deleted, because leaving the file in place would
+   * make javac behave as if a previous run's configuration were still in effect.
+   */
+  private fun deleteManifestFile(cfBuildDir: File, fileName: String) {
+    val manifestFile = File(cfBuildDir, fileName)
+    if (manifestFile.exists() && !manifestFile.delete()) {
+      throw IOException("Could not delete $manifestFile")
     }
   }
 
@@ -57,7 +73,10 @@ abstract class WriteCheckerManifestTask : DefaultTask() {
     separator: String,
   ) {
     val processorFile = File(cfBuildDir, fileName)
-    processorFile.parentFile.mkdirs()
+    val parentDir = processorFile.parentFile
+    if (!parentDir.isDirectory && !parentDir.mkdirs()) {
+      throw IOException("Could not create directory $parentDir")
+    }
     // Overwrites the contents of fileName if it exists or creates a new file if fileName does not
     // exist.
     processorFile.writeText(checkers.joinToString(separator = separator, postfix = separator))

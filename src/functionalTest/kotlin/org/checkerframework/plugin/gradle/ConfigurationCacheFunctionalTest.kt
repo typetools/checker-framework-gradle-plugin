@@ -58,6 +58,79 @@ class ConfigurationCacheFunctionalTest : KotlinPluginFunctionalTest() {
   }
 
   @Test
+  fun `test configuration cache with test sources`() {
+    buildFile.appendText(
+      """
+      configure<CheckerFrameworkExtension> {
+        version = "$TEST_CF_VERSION"
+        checkers = listOf("org.checkerframework.checker.tainting.TaintingChecker")
+        extraJavacArgs = listOf("-Afilenames")
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+    testProjectDir.writeTestClass()
+
+    // when
+    val firstResult = testProjectDir.buildWithArgs("compileTestJava", "--configuration-cache")
+
+    // then
+    assertThat(firstResult.task(":compileTestJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(firstResult.output)
+      .containsMatch("Note: TaintingChecker is type-checking .*Test.java")
+    assertThat(firstResult.output).contains(CONFIGURATION_CACHE_STORED)
+
+    // when the build is run again from a clean output directory
+    testProjectDir.resolve("build/classes").deleteRecursively()
+    val secondResult = testProjectDir.buildWithArgs("compileTestJava", "--configuration-cache")
+
+    // then
+    assertThat(secondResult.output).contains(CONFIGURATION_CACHE_REUSED)
+    assertThat(secondResult.task(":compileTestJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(secondResult.output)
+      .containsMatch("Note: TaintingChecker is type-checking .*Test.java")
+  }
+
+  @Test
+  fun `test configuration cache with excludeTests`() {
+    buildFile.appendText(
+      """
+      configure<CheckerFrameworkExtension> {
+        version = "$TEST_CF_VERSION"
+        checkers = listOf("org.checkerframework.checker.tainting.TaintingChecker")
+        excludeTests = true
+        extraJavacArgs = listOf("-Afilenames")
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+    testProjectDir.writeTestClass()
+
+    // when
+    val firstResult = testProjectDir.buildWithArgs("compileTestJava", "--configuration-cache")
+
+    // then
+    assertThat(firstResult.task(":compileTestJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(firstResult.output)
+      .containsMatch("Note: TaintingChecker is type-checking .*Success.java")
+    assertThat(firstResult.output).doesNotContain("Test.java")
+    assertThat(firstResult.output).contains(CONFIGURATION_CACHE_STORED)
+
+    // when the build is run again from a clean output directory
+    testProjectDir.resolve("build/classes").deleteRecursively()
+    val secondResult = testProjectDir.buildWithArgs("compileTestJava", "--configuration-cache")
+
+    // then
+    assertThat(secondResult.output).contains(CONFIGURATION_CACHE_REUSED)
+    assertThat(secondResult.task(":compileTestJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(secondResult.output).doesNotContain("Test.java")
+  }
+
+  @Test
   fun `test configuration cache with a failing checker`() {
     buildFile.appendText(
       """
