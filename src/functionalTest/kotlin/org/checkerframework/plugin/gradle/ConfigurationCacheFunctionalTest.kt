@@ -236,6 +236,33 @@ class ConfigurationCacheFunctionalTest : KotlinPluginFunctionalTest() {
   }
 
   @Test
+  fun `test configuration cache with a processor argument that has no value`() {
+    buildFile.appendText(
+      """
+      configure<CheckerFrameworkExtension> {
+        version = "$TEST_CF_VERSION"
+        checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+      }
+      tasks.named<JavaCompile>("compileJava") {
+        options.compilerArgs.add("-processor")
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    testProjectDir.buildWithArgsAndFail("compileJava", "--configuration-cache")
+    val result = testProjectDir.buildWithArgsAndFail("compileJava", "--configuration-cache")
+
+    // then the warning is issued even though configuration did not run
+    assertThat(result.output).contains(CONFIGURATION_CACHE_REUSED)
+    assertThat(result.output)
+      .contains("Found -processor argument without a value; no checkers will be used.")
+  }
+
+  @Test
   fun `test configuration cache with missing checkers`() {
     buildFile.appendText(
       """

@@ -126,6 +126,45 @@ class OtherPluginsFunctionalTest : KotlinPluginFunctionalTest() {
   }
 
   @Test
+  fun `test disabling CF for compileJava only, with lombok`() {
+    buildFile.appendText(
+      """
+       plugins {
+          `java-library`
+          id("org.checkerframework")
+          id("io.freefair.lombok").version("9.2.0")
+      }
+
+      configure<CheckerFrameworkExtension> {
+        version = "$TEST_CF_VERSION"
+        checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+        extraJavacArgs = listOf("-Aversion")
+      }
+      tasks.named<JavaCompile>("compileJava") {
+        val cfOptions =
+          (options as ExtensionAware).extensions.getByName("checkerFrameworkCompile")
+            as CheckerFrameworkCompileExtension
+        cfOptions.enabled.set(false)
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeLombokExample()
+
+    // when
+    val result = testProjectDir.buildWithArgsAndFail("build")
+
+    // then the Checker Framework still runs on the delomboked source code
+    assertThat(result.output)
+      .contains(
+        "User.java:9: error: [argument] incompatible argument for parameter y of FooBuilder.y."
+      )
+    assertThat(result.output)
+      .contains("Foo.java:12: error: [assignment] incompatible types in assignment.")
+  }
+
+  @Test
   fun `test errorprone latest`() {
     val majorVersion = Runtime.version().feature()
     if (majorVersion < 21) {
