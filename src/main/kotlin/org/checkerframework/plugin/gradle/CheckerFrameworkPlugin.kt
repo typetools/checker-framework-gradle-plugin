@@ -6,14 +6,19 @@ import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.artifacts.Configuration
+import org.gradle.api.file.FileCollection
 import org.gradle.api.plugins.ExtensionAware
 import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.plugins.JavaPluginExtension
+import org.gradle.api.provider.ListProperty
+import org.gradle.api.provider.Provider
+import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.SourceSetContainer
 import org.gradle.api.tasks.TaskProvider
 import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.kotlin.dsl.getByName
+import org.gradle.kotlin.dsl.getByType
 import org.gradle.kotlin.dsl.withType
 import org.gradle.process.CommandLineArgumentProvider
 import org.gradle.util.GradleVersion
@@ -36,18 +41,22 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
     val cfExtension =
       project.extensions.create("checkerFramework", CheckerFrameworkExtension::class.java)
 
+    // The Checker Framework version to use: the value of the "cfVersion" property if it is set,
+    // and the value of the `version` configuration option otherwise.
+    val cfVersion = project.providers.gradleProperty("cfVersion").orElse(cfExtension.version)
+
     val cfConfiguration =
       project.configurations.register(CONFIGURATION_NAME) {
         description =
           "Checker Framework dependencies, will be extended by all source sets' annotationProcessor configurations"
-        addDefaultCFDependencies(cfExtension, project, "checker")
+        addDefaultCFDependencies(cfVersion, project, "checker")
       }
 
     val checkerQualConfiguration =
       project.configurations.register("checkerQual") {
         description =
           "Pluggable type-checker qualifier dependencies, will be extended by all source sets' implementation configuration"
-        addDefaultCFDependencies(cfExtension, project, "checker-qual")
+        addDefaultCFDependencies(cfVersion, project, "checker-qual")
       }
 
     // Add checker.jar to all annotationProcessor configurations and checker-qual.jar to all
@@ -66,29 +75,58 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
       }
     }
 
-    val cfManifestDir = project.layout.buildDirectory.dir("checkerframework")
+    val writeManifestTask =
+      project.tasks.register("writeCheckerManifest", WriteCheckerManifestTask::class.java) {
+        group = "Checker Framework tasks"
+        checkers.set(cfExtension.checkers)
+        incrementalize.set(cfExtension.incrementalize)
+        cfBuildDir.set(project.layout.buildDirectory.dir("checkerframework"))
+      }
 
-    project.tasks.register("writeCheckerManifest", WriteCheckerManifestTask::class.java) {
-      group = "Checker Framework tasks"
-      checkers.set(cfExtension.checkers)
-      incrementalize.set(cfExtension.incrementalize)
-      cfBuildDir.set(cfManifestDir)
+    // A file collection containing the manifest directory, which carries a dependency on the task
+    // that creates the directory's contents.
+    val cfManifestFiles = project.files(writeManifestTask.flatMap { it.cfBuildDir })
+
+    project.tasks.withType<JavaCompile>().configureEach {
+      (options as ExtensionAware)
+        .extensions
+        .create("checkerFrameworkCompile", CheckerFrameworkCompileExtension::class.java)
     }
+
+    // Configure the JavaCompile tasks after the build script has run, so that the values of the
+    // extensions are the ones the user requested, no matter when a task is realized.
+    project.afterEvaluate {
+      configureJavaCompileTasks(project, cfExtension, cfManifestFiles, writeManifestTask)
+    }
+
+    // Handle Lombok
+    project.pluginManager.withPlugin("io.freefair.lombok") {
+      val javaPluginExtension: JavaPluginExtension =
+        project.extensions.getByType(JavaPluginExtension::class.java)
+      javaPluginExtension.sourceSets.configureEach { addCheckDelombokTask(this, project) }
+    }
+  }
+
+  /** Configures every [JavaCompile] task on which the Checker Framework should be run. */
+  private fun configureJavaCompileTasks(
+    project: Project,
+    cfExtension: CheckerFrameworkExtension,
+    cfManifestFiles: FileCollection,
+    writeManifestTask: TaskProvider<WriteCheckerManifestTask>,
+  ) {
+    // If the user passes -PskipCheckerFramework, then use that value rather than the value from
+    // the configuration.
+    val skipCfProperty = project.providers.gradleProperty("skipCheckerFramework")
+    val skipCf =
+      if (skipCfProperty.isPresent) {
+        skipCfProperty.get() != "false"
+      } else {
+        cfExtension.skipCheckerFramework.getOrElse(false)
+      }
 
     project.tasks.withType<JavaCompile>().configureEach {
       val cfCompileOptions =
-        (options as ExtensionAware)
-          .extensions
-          .create("checkerFrameworkCompile", CheckerFrameworkCompileExtension::class.java)
-
-      // If the user passes -PskipCheckerFramework, then use that value rather than the value from
-      // the configuration.
-      val skipCf =
-        if (project.hasProperty("skipCheckerFramework")) {
-          (project.properties["skipCheckerFramework"]?.toString() ?: "false") != "false"
-        } else {
-          cfExtension.skipCheckerFramework.getOrElse(false)
-        }
+        (options as ExtensionAware).extensions.getByType<CheckerFrameworkCompileExtension>()
 
       if (
         skipCf ||
@@ -97,57 +135,36 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
       ) {
         return@configureEach
       }
-      dependsOn("writeCheckerManifest")
+      dependsOn(writeManifestTask)
 
       // Add argument providers so that a user cannot accidentally overwrite the Checker
       // Framework options, i.e. options.compilerArgs = [...].
-      options.compilerArgumentProviders.add(CheckerFrameworkCompilerArgumentProvider(cfExtension))
+      options.compilerArgumentProviders.add(
+        CheckerFrameworkCompilerArgumentProvider(cfExtension.extraJavacArgs)
+      )
       options.forkOptions.jvmArgumentProviders.add(CheckerFrameworkJvmArgumentProvider())
-      doFirst {
-        if (
-          skipCf ||
-            !cfCompileOptions.enabled.getOrElse(true) ||
-            (cfExtension.excludeTests.getOrElse(false) && isTestName(name))
-        ) {
-          return@doFirst
-        }
-        if (cfExtension.checkers.isPresent) {
-          val checkers = cfExtension.checkers.get()
-          if (checkers.isEmpty()) {
-            throw IllegalStateException("Must specify checkers for the Checker Framework.")
-          }
-          // If the annotationProcessorPath is null, then annotation processing is disabled, so no
-          // need to add things to the path.
-          options.annotationProcessorPath =
-            options.annotationProcessorPath?.plus(project.files(cfManifestDir))
 
-          val processorArgIndex = options.compilerArgs.indexOf("-processor")
-          if (processorArgIndex != -1 && processorArgIndex + 1 < options.compilerArgs.size) {
-            // Because the user already passed -processor as a compiler arg, auto discovery will
-            // not work, so add the checkers to the list of processors.
-            // This can't be done in CheckerFrameworkCompilerArgumentProvider because it modifies
-            // existing arguments rather than adding a new one.
-            val oldProcessors = options.compilerArgs[processorArgIndex + 1]
-            val cfProcessors = checkers.joinToString(separator = ",")
-            options.compilerArgs[processorArgIndex + 1] = "$oldProcessors,$cfProcessors"
-          } else if (processorArgIndex != -1) {
-            project.logger.warn(
-              "Found -processor argument without a value; no checkers will be used."
-            )
-          }
-          // Must fork for the JVM arguments to be applied.
-          options.isFork = true
+      // If the annotationProcessorPath is null, then annotation processing is disabled, so there
+      // is no need to add things to the path.
+      options.annotationProcessorPath = options.annotationProcessorPath?.plus(cfManifestFiles)
+
+      val checkers = cfExtension.checkers.getOrElse(emptyList())
+      val processorArgIndex = options.compilerArgs.indexOf("-processor")
+      if (processorArgIndex != -1 && checkers.isNotEmpty()) {
+        if (processorArgIndex + 1 < options.compilerArgs.size) {
+          // Because the user already passed -processor as a compiler arg, auto discovery will
+          // not work, so add the checkers to the list of processors.
+          // This can't be done in CheckerFrameworkCompilerArgumentProvider because it modifies
+          // existing arguments rather than adding a new one.
+          val oldProcessors = options.compilerArgs[processorArgIndex + 1]
+          val cfProcessors = checkers.joinToString(separator = ",")
+          options.compilerArgs[processorArgIndex + 1] = "$oldProcessors,$cfProcessors"
         } else {
-          throw IllegalStateException("Must specify checkers for the Checker Framework.")
+          logger.warn("Found -processor argument without a value; no checkers will be used.")
         }
       }
-    }
-
-    // Handle Lombok
-    project.pluginManager.withPlugin("io.freefair.lombok") {
-      val javaPluginExtension: JavaPluginExtension =
-        project.extensions.getByType(JavaPluginExtension::class.java)
-      javaPluginExtension.sourceSets.configureEach { addCheckDelombokTask(this, project) }
+      // Must fork for the JVM arguments to be applied.
+      options.isFork = true
     }
   }
 
@@ -198,19 +215,24 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
   /**
    * Add the default dependencies for the given {@code jarName}.
    *
-   * @param cfExtension CF configuration
+   * @param cfVersion the Checker Framework version, "local", or "dependencies"
    * @param project current project
    * @param jarName name of the jar which is added as a dependency
    */
   private fun Configuration.addDefaultCFDependencies(
-    cfExtension: CheckerFrameworkExtension,
+    cfVersion: Provider<String>,
     project: Project,
     jarName: String,
   ) {
     isCanBeConsumed = false
     isCanBeResolved = false
+    val dependencies = project.dependencies
+    val objects = project.objects
     defaultDependencies {
-      when (val version = getCFVersion(cfExtension, project)) {
+      when (
+        val version =
+          cfVersion.orNull ?: throw IllegalStateException("Checker Framework version must be set.")
+      ) {
         "local" -> {
           val cfHome =
             System.getenv("CHECKERFRAMEWORK")
@@ -224,37 +246,16 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
                 "Please ensure the Checker Framework is built."
             )
           }
-          add(project.dependencies.create(project.files(jarFile)))
+          add(dependencies.create(objects.fileCollection().from(jarFile)))
         }
         "dependencies" -> {
           // Don't add dependencies.
         }
         else -> {
-          add(project.dependencies.create("org.checkerframework:$jarName:$version"))
+          add(dependencies.create("org.checkerframework:$jarName:$version"))
         }
       }
     }
-  }
-
-  /**
-   * Get the version configuration value, which is a Checker Framework version, "local", or
-   * "dependencies".
-   *
-   * @param cfExtension CF configuration
-   * @param project current project
-   * @return the version configuration value, which is a Checker Framework version, "local", or
-   *   "dependencies".
-   */
-  private fun getCFVersion(cfExtension: CheckerFrameworkExtension, project: Project): String {
-    if (project.hasProperty("cfVersion")) {
-      return project.properties["cfVersion"]?.toString()
-        ?: throw IllegalStateException("cfVersion property is set but has a null value")
-    }
-
-    if (!cfExtension.version.isPresent) {
-      throw IllegalStateException("Checker Framework version must be set.")
-    }
-    return cfExtension.version.get()
   }
 
   /** Return true if the Name is a test name. */
@@ -264,10 +265,10 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
 
   /** Provides extraJavacArgs to the compiler. */
   internal class CheckerFrameworkCompilerArgumentProvider(
-    private val cfOptions: CheckerFrameworkExtension
+    @get:Input val extraJavacArgs: ListProperty<String>
   ) : CommandLineArgumentProvider {
     override fun asArguments(): Iterable<String?> {
-      return cfOptions.extraJavacArgs.getOrElse(emptyList())
+      return extraJavacArgs.getOrElse(emptyList())
     }
   }
 
