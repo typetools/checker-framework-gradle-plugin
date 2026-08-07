@@ -591,6 +591,138 @@ class CfPluginFunctionalTest : KotlinPluginFunctionalTest() {
   }
 
   @Test
+  fun `test a dependency constraint on a project is used`() {
+    // A constraint on a project makes the project replace an external module with the same
+    // coordinates. Recreating the constraint from its group and name would make it an ordinary
+    // module constraint, which leaves the external module in place.
+    settingsFile.appendText(
+      """
+      include(":cfFork")
+      """
+        .trimIndent()
+    )
+    testProjectDir
+      .resolve("cfFork")
+      .apply { mkdirs() }
+      .resolve("build.gradle.kts")
+      .writeText(
+        """
+        plugins {
+          `java-library`
+        }
+        group = "org.checkerframework.test"
+        version = "1.0"
+        """
+          .trimIndent()
+      )
+    testProjectDir
+      .resolve("repo/org/checkerframework/test/cfFork/0.9")
+      .apply { mkdirs() }
+      .resolve("cfFork-0.9.pom")
+      .writeText(
+        """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <project xmlns="http://maven.apache.org/POM/4.0.0">
+          <modelVersion>4.0.0</modelVersion>
+          <groupId>org.checkerframework.test</groupId>
+          <artifactId>cfFork</artifactId>
+          <version>0.9</version>
+          <packaging>jar</packaging>
+        </project>
+        """
+          .trimIndent()
+      )
+    buildFile.appendText(
+      """
+      repositories {
+        maven { url = uri("repo") }
+      }
+      dependencies {
+        checkerFramework("org.checkerframework.test:cfFork:0.9")
+        constraints {
+          checkerFramework(project(":cfFork")) {
+            because("the test replaces the published fork with the local one")
+          }
+        }
+      }
+      configure<CheckerFrameworkExtension> {
+        version = "dependencies"
+        checkers = listOf("org.checkerframework.checker.tainting.TaintingChecker")
+      }
+      """
+        .trimIndent()
+    )
+
+    // when
+    val result =
+      testProjectDir.buildWithArgs(
+        "dependencyInsight",
+        "--configuration",
+        "annotationProcessor",
+        "--dependency",
+        "cfFork",
+      )
+
+    // then
+    assertThat(result.output).contains("project :cfFork")
+    assertThat(result.output).contains("the test replaces the published fork with the local one")
+  }
+
+  @Test
+  fun `test dependencies are added even if a classpath is resolved while the build script runs`() {
+    buildFile.appendText(
+      """
+      configure<CheckerFrameworkExtension> {
+        version = "$TEST_CF_VERSION"
+        checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+      }
+      // Resolve a classpath while the build script runs, before the plugin has finished
+      // configuring the project.
+      val resolvedEarly = configurations["annotationProcessor"].files.map { it.name }
+      tasks.register("printResolvedEarly") {
+        doLast { println("RESOLVED_EARLY=" + resolvedEarly.joinToString(",")) }
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgs("printResolvedEarly")
+
+    // then
+    assertThat(result.task(":printResolvedEarly")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(result.output).containsMatch("RESOLVED_EARLY=.*checker-$TEST_CF_VERSION")
+  }
+
+  @Test
+  fun `test enabling the Checker Framework after the task graph is computed fails`() {
+    buildFile.appendText(
+      """
+      configure<CheckerFrameworkExtension> {
+        version = "$TEST_CF_VERSION"
+        checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+        skipCheckerFramework = true
+      }
+      // Too late: the writeCheckerManifest task is not in the task graph, so no checker would run.
+      gradle.taskGraph.whenReady {
+        the<CheckerFrameworkExtension>().skipCheckerFramework = false
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgsAndFail("compileJava")
+
+    // then
+    assertThat(result.output).contains("The Checker Framework manifest was not written")
+  }
+
+  @Test
   fun `test exclude rules that the checkerFramework configuration inherits are used`() {
     buildFile.appendText(
       """

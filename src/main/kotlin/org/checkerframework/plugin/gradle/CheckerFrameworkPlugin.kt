@@ -11,10 +11,7 @@ import org.gradle.api.Task
 import org.gradle.api.Transformer
 import org.gradle.api.artifacts.Configuration
 import org.gradle.api.artifacts.Dependency
-import org.gradle.api.artifacts.DependencyConstraint
-import org.gradle.api.artifacts.dsl.DependencyConstraintHandler
 import org.gradle.api.artifacts.dsl.DependencyHandler
-import org.gradle.api.attributes.Attribute
 import org.gradle.api.file.FileCollection
 import org.gradle.api.model.ObjectFactory
 import org.gradle.api.plugins.ExtensionAware
@@ -65,14 +62,14 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
     val cfConfiguration =
       project.configurations.register(CONFIGURATION_NAME) {
         description =
-          "Checker Framework dependencies, will be extended by all source sets' annotationProcessor configurations"
+          "Checker Framework dependencies, which are added to all source sets' annotationProcessor configurations"
         addDefaultCFDependencies(cfVersion, project, "checker")
       }
 
     val checkerQualConfiguration =
       project.configurations.register("checkerQual") {
         description =
-          "Pluggable type-checker qualifier dependencies, will be extended by all source sets' implementation configuration"
+          "Pluggable type-checker qualifier dependencies, which are added to all source sets' implementation configurations"
         addDefaultCFDependencies(cfVersion, project, "checker-qual")
       }
 
@@ -94,17 +91,23 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
         .create("checkerFrameworkCompile", CheckerFrameworkCompileExtension::class.java)
     }
 
+    // Register the actions that add dependencies now, rather than after the build script has run,
+    // because Gradle forbids adding a dependency action to a configuration that has already been
+    // resolved, and a build script may resolve a configuration while it runs. Registering the
+    // action does not fix what it will add: the action reads the extension's options when a
+    // configuration is resolved, by which time the options have their final values.
+    addCFDependenciesToSourceSets(
+      project,
+      cfExtension,
+      cfVersion,
+      cfConfiguration,
+      checkerQualConfiguration,
+    )
+
     // Configure after the build script has run, so that the values of the extensions and of the
     // project properties are the ones the user requested, no matter when a task is realized.
     afterEvaluateOrNow(project) {
       setCFVersionFromProjectProperty(project, cfVersion)
-      addCFDependenciesToSourceSets(
-        project,
-        cfExtension,
-        cfVersion,
-        cfConfiguration,
-        checkerQualConfiguration,
-      )
       configureJavaCompileTasks(project, cfExtension, cfManifestFiles)
     }
 
@@ -169,6 +172,11 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
    * configuration has been observed. [Configuration.withDependencies] runs when the dependencies
    * are queried, by which time the extension's options have their final values.
    *
+   * This must be called while this plugin is being applied, not after the project has been
+   * evaluated, because Gradle forbids calling [Configuration.withDependencies] on a configuration
+   * that has already been resolved, and a build script may resolve a source set's classpath while
+   * the build script runs.
+   *
    * @param targetConfiguration the configuration of a source set to add the dependencies to
    * @param cfConfiguration the configuration whose dependencies to copy
    * @param cfExtension the configuration that says whether to exclude tests
@@ -187,7 +195,6 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
     isTest: Boolean,
   ) {
     val dependencies = project.dependencies
-    val constraints = project.dependencies.constraints
     val objects = project.objects
     targetConfiguration.withDependencies {
       if (isTest && cfExtension.excludeTests.getOrElse(false)) {
@@ -202,14 +209,17 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
       if (cfConfigurationValue.dependencies.isEmpty()) {
         defaultCFDependency(cfVersion, dependencies, objects, jarName)?.let { add(it) }
       }
-      // Copy every dependency, constraint, and exclude rule that extendsFrom would have made
+      // Add every dependency, constraint, and exclude rule that extendsFrom would have made
       // targetConfiguration inherit, including those that cfConfiguration itself inherits.
-      // A dependency and a constraint are copied rather than shared, because each is mutable and
-      // belongs to one configuration: configuring targetConfiguration must not change
-      // cfConfiguration.
+      // A dependency is copied rather than shared, because a dependency is mutable and belongs to
+      // one configuration: configuring targetConfiguration must not change cfConfiguration.
       cfConfigurationValue.allDependencies.forEach { add(it.copy()) }
+      // A constraint is shared rather than copied, which is what extendsFrom does as well. A
+      // constraint cannot be copied faithfully: DependencyConstraint has no `copy` method, and
+      // recreating a constraint from its group and name turns a constraint on a project into a
+      // constraint on an external module, which no longer selects the project.
       cfConfigurationValue.allDependencyConstraints.forEach {
-        targetConfiguration.dependencyConstraints.add(copyConstraint(constraints, it))
+        targetConfiguration.dependencyConstraints.add(it)
       }
       // The exclude rules are read from the whole hierarchy, because Configuration.getExcludeRules
       // returns only a configuration's own rules, whereas resolution applies the exclude rules of
@@ -225,47 +235,6 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
         }
       }
     }
-  }
-
-  /**
-   * Returns a copy of {@code constraint}. [DependencyConstraint] has no `copy` method, so this
-   * creates a new constraint and transfers the version, reason, and attributes.
-   *
-   * @param constraints creates the copy
-   * @param constraint the constraint to copy
-   */
-  private fun copyConstraint(
-    constraints: DependencyConstraintHandler,
-    constraint: DependencyConstraint,
-  ): DependencyConstraint {
-    val copy = constraints.create("${constraint.group}:${constraint.name}")
-    val versionConstraint = constraint.versionConstraint
-    copy.version {
-      // `strictly` also sets the required version, so only one of the two calls is needed.
-      if (versionConstraint.strictVersion.isNotEmpty()) {
-        strictly(versionConstraint.strictVersion)
-      } else if (versionConstraint.requiredVersion.isNotEmpty()) {
-        this.require(versionConstraint.requiredVersion)
-      }
-      if (versionConstraint.preferredVersion.isNotEmpty()) {
-        prefer(versionConstraint.preferredVersion)
-      }
-      if (versionConstraint.rejectedVersions.isNotEmpty()) {
-        reject(*versionConstraint.rejectedVersions.toTypedArray())
-      }
-      branch = versionConstraint.branch
-    }
-    constraint.reason?.let { copy.because(it) }
-    copy.attributes {
-      val copyAttributes = this
-      constraint.attributes.keySet().forEach {
-        // The value of an Attribute<T> has type T, which the AttributeContainer API cannot express
-        // for an attribute whose type is not statically known.
-        @Suppress("UNCHECKED_CAST") val attribute = it as Attribute<Any>
-        copyAttributes.attribute(attribute, constraint.attributes.getAttribute(attribute)!!)
-      }
-    }
-    return copy
   }
 
   /** Configures every [JavaCompile] task on which the Checker Framework should be run. */
@@ -581,8 +550,12 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
         // Undo the forking that configuration time requested when the Checker Framework was still
         // enabled, so that this compilation does not fork needlessly. Forking that this plugin did
         // not request is left alone; a request that the user makes after this plugin's cannot be
-        // distinguished from this plugin's, and is undone as well.
+        // distinguished from this plugin's, and is undone as well. The undoing is logged because
+        // it discards a fork that the user may have asked for, along with its fork options.
         if (requestedFork) {
+          task.logger.info(
+            "The Checker Framework is disabled for ${task.path}, so ${task.path} will not fork."
+          )
           options.isFork = false
         }
         return
@@ -590,6 +563,21 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
       val checkerNames = checkers.getOrElse(emptyList())
       if (checkerNames.isEmpty()) {
         throw IllegalStateException("Must specify checkers for the Checker Framework.")
+      }
+
+      // The manifest directory is written by the writeCheckerManifest task, which runs only if some
+      // compilation had the Checker Framework enabled when Gradle computed the task graph. If the
+      // Checker Framework was enabled after that, the manifest does not exist, javac's annotation
+      // processor auto-discovery finds no checker, and this compilation would silently type-check
+      // nothing. Fail instead.
+      if (
+        cfManifestFiles.files.none { File(it, WriteCheckerManifestTask.PROCESSOR_FILE_NAME).isFile }
+      ) {
+        throw IllegalStateException(
+          "The Checker Framework manifest was not written, so no checker would run on ${task.path}." +
+            " The Checker Framework cannot be enabled after Gradle has computed the task graph;" +
+            " enable it while the build script runs instead."
+        )
       }
 
       // Must fork for the JVM arguments to be applied. Configuration time requests forking if the

@@ -16,6 +16,23 @@ import org.gradle.api.tasks.TaskAction
  * META-INF/gradle/incremental.annotation.processors files so that processor autodiscovery works.
  */
 abstract class WriteCheckerManifestTask : DefaultTask() {
+  companion object {
+    /**
+     * The file, relative to the manifest directory, that makes javac discover the checkers.
+     *
+     * https://checkerframework.org/manual/#checker-auto-discovery
+     */
+    const val PROCESSOR_FILE_NAME = "META-INF/services/javax.annotation.processing.Processor"
+
+    /**
+     * The file, relative to the manifest directory, that tells Gradle the checkers support
+     * incremental annotation processing.
+     *
+     * https://docs.gradle.org/current/userguide/java_plugin.html#sec:incremental_annotation_processing
+     */
+    const val INCREMENTAL_FILE_NAME = "META-INF/gradle/incremental.annotation.processors"
+  }
+
   @get:Input abstract val checkers: ListProperty<String>
 
   @get:Input @get:Optional abstract val incrementalize: Property<Boolean>
@@ -34,22 +51,18 @@ abstract class WriteCheckerManifestTask : DefaultTask() {
     if (!cfBuildDirAsFile.isDirectory && !cfBuildDirAsFile.mkdirs()) {
       throw IOException("Could not create directory $cfBuildDirAsFile")
     }
-    // https://checkerframework.org/manual/#checker-auto-discovery
-    val processorFileName = "META-INF/services/javax.annotation.processing.Processor"
-    // https://docs.gradle.org/current/userguide/java_plugin.html#sec:incremental_annotation_processing
-    val incrementalFileName = "META-INF/gradle/incremental.annotation.processors"
     val checkerNames = checkers.get()
     if (checkerNames.isEmpty()) {
       // No need to write the files if no checkers are specified.
-      deleteManifestFile(cfBuildDirAsFile, processorFileName)
-      deleteManifestFile(cfBuildDirAsFile, incrementalFileName)
+      deleteManifestFile(cfBuildDirAsFile, PROCESSOR_FILE_NAME)
+      deleteManifestFile(cfBuildDirAsFile, INCREMENTAL_FILE_NAME)
       return
     }
-    writeManifestFile(cfBuildDirAsFile, checkerNames, processorFileName, "\n")
+    writeManifestFile(cfBuildDirAsFile, checkerNames, PROCESSOR_FILE_NAME, "\n")
     if (incrementalize.getOrElse(true)) {
-      writeManifestFile(cfBuildDirAsFile, checkerNames, incrementalFileName, ",isolating\n")
+      writeManifestFile(cfBuildDirAsFile, checkerNames, INCREMENTAL_FILE_NAME, ",isolating\n")
     } else {
-      deleteManifestFile(cfBuildDirAsFile, incrementalFileName)
+      deleteManifestFile(cfBuildDirAsFile, INCREMENTAL_FILE_NAME)
     }
   }
 
