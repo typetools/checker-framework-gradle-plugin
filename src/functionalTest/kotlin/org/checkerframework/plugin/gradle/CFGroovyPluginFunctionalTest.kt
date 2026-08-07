@@ -392,6 +392,36 @@ class CFGroovyPluginFunctionalTest : GroovyPluginFunctionalTest() {
   }
 
   @Test
+  fun `test forking is undone if the Checker Framework is disabled after configuration`() {
+    buildFile.appendText(
+      """
+      checkerFramework {
+        version = "$TEST_CF_VERSION"
+        checkers = ["org.checkerframework.checker.nullness.NullnessChecker"]
+      }
+      gradle.taskGraph.whenReady {
+        tasks.compileJava.options.checkerFrameworkCompile.enabled = false
+      }
+      tasks.compileJava.doLast {
+        println "COMPILE_JAVA_FORK=" + options.fork
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgs("compileJava")
+
+    // then
+    // Forking was requested at configuration time, while the Checker Framework was still enabled.
+    // Because this compilation does not run the Checker Framework after all, it does not fork.
+    assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(result.output).contains("COMPILE_JAVA_FORK=false")
+  }
+
+  @Test
   fun `test excludeTestsTrue`() {
     buildFile.appendText(
       """
