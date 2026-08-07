@@ -486,4 +486,147 @@ class CfPluginFunctionalTest : KotlinPluginFunctionalTest() {
     assertThat(result.output)
       .doesNotContainMatch("Note: TaintingChecker is type-checking .*Test.java")
   }
+
+  @Test
+  fun `test excludeTests omits the dependencies from the test configurations`() {
+    buildFile.appendText(
+      """
+      configure<CheckerFrameworkExtension> {
+        version = "$TEST_CF_VERSION"
+        checkers = listOf("org.checkerframework.checker.tainting.TaintingChecker")
+        excludeTests = true
+      }
+      tasks.register("printTestConfigurations") {
+        val processorExtendsFrom =
+          configurations["testAnnotationProcessor"].extendsFrom.map { it.name }
+        val implementationExtendsFrom = configurations["testImplementation"].extendsFrom.map { it.name }
+        doLast {
+          println("test uses checkerFramework: " + processorExtendsFrom.contains("checkerFramework"))
+          println("test uses checkerQual: " + implementationExtendsFrom.contains("checkerQual"))
+        }
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgs("printTestConfigurations")
+
+    // then
+    assertThat(result.output).contains("test uses checkerFramework: false")
+    assertThat(result.output).contains("test uses checkerQual: false")
+  }
+
+  @Test
+  fun `test cfVersion extra property`() {
+    buildFile.appendText(
+      """
+      extra["cfVersion"] = "$TEST_CF_VERSION"
+      configure<CheckerFrameworkExtension> {
+        checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+        extraJavacArgs = listOf("-Aversion")
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgs("compileJava")
+
+    // then
+    assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(result.output).contains("Note: Checker Framework $TEST_CF_VERSION")
+  }
+
+  @Test
+  fun `test skipCheckerFramework extra property`() {
+    buildFile.appendText(
+      """
+      extra["skipCheckerFramework"] = "true"
+      configure<CheckerFrameworkExtension> {
+        version = "$TEST_CF_VERSION"
+        checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+        extraJavacArgs = listOf("-Aversion")
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgs("compileJava")
+
+    // then
+    assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(result.output).doesNotContain("Note: Checker Framework $TEST_CF_VERSION")
+  }
+
+  @Test
+  fun `test writeCheckerManifest with no checkers`() {
+    buildFile.appendText(
+      """
+      configure<CheckerFrameworkExtension> {
+        version = "$TEST_CF_VERSION"
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgs("writeCheckerManifest")
+
+    // then
+    assertThat(result.task(":writeCheckerManifest")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+  }
+
+  @Test
+  fun `test incrementalize false removes the incremental manifest`() {
+    val buildFileText = buildFile.readText()
+    buildFile.writeText(
+      buildFileText +
+        """
+        configure<CheckerFrameworkExtension> {
+          version = "$TEST_CF_VERSION"
+          checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+        }
+        """
+          .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+    val incrementalManifest =
+      testProjectDir.resolve(
+        "build/checkerframework/META-INF/gradle/incremental.annotation.processors"
+      )
+
+    // when
+    testProjectDir.buildWithArgs("compileJava")
+
+    // then
+    assertThat(incrementalManifest.exists()).isTrue()
+
+    // when incremental annotation processing is turned off
+    buildFile.writeText(
+      buildFileText +
+        """
+        configure<CheckerFrameworkExtension> {
+          version = "$TEST_CF_VERSION"
+          checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+          incrementalize = false
+        }
+        """
+          .trimIndent()
+    )
+    testProjectDir.buildWithArgs("compileJava")
+
+    // then
+    assertThat(incrementalManifest.exists()).isFalse()
+  }
 }

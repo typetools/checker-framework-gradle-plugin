@@ -23,11 +23,15 @@ abstract class WriteCheckerManifestTask : DefaultTask() {
 
   @TaskAction
   fun run() {
-    if (checkers.get().isEmpty()) {
-      throw IllegalStateException("Must specify checkers for the Checker Framework.")
-    }
     val cfBuildDirAsFile = cfBuildDir.get().asFile
+    // Discard files written by a previous run, which might no longer be desired; for example,
+    // incremental.annotation.processors must not exist when `incrementalize` is false.
+    cfBuildDirAsFile.deleteRecursively()
     cfBuildDirAsFile.mkdirs()
+    if (checkers.get().isEmpty()) {
+      // No need to write the files if no checkers are specified.
+      return
+    }
     // https://checkerframework.org/manual/#checker-auto-discovery
     writeManifestFile(
       cfBuildDirAsFile,
