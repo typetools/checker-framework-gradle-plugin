@@ -48,6 +48,33 @@ class CFGroovyPluginFunctionalTest : GroovyPluginFunctionalTest() {
   }
 
   @Test
+  fun `test disabling CF for one task`() {
+    buildFile.appendText(
+      """
+      compileJava {
+        options.checkerFrameworkCompile.enabled = false
+      }
+      checkerFramework {
+        version = "$TEST_CF_VERSION"
+        checkers = ["org.checkerframework.checker.nullness.NullnessChecker"]
+        extraJavacArgs = ["-Aversion"]
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeNullnessFailure()
+
+    // when
+    val result = testProjectDir.buildWithArgs("compileJava")
+
+    // then
+    assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(result.output).doesNotContain("Note: Checker Framework $TEST_CF_VERSION")
+    assertThat(result.output).doesNotContain(NULLNESS_FAILURE)
+  }
+
+  @Test
   fun `test excludeTestsTrue`() {
     buildFile.appendText(
       """

@@ -24,8 +24,7 @@ abstract class WriteCheckerManifestTask : DefaultTask() {
   @TaskAction
   fun run() {
     if (checkers.get().isEmpty()) {
-      // No need to write the file if no checkers are specified.
-      return
+      throw IllegalStateException("Must specify checkers for the Checker Framework.")
     }
     val cfBuildDirAsFile = cfBuildDir.get().asFile
     cfBuildDirAsFile.mkdirs()
