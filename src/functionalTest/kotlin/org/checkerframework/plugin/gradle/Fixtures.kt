@@ -169,6 +169,9 @@ fun File.writeErrorProneExample() {
   }
 }
 
+const val CONFIGURATION_CACHE_STORED = "Configuration cache entry stored."
+const val CONFIGURATION_CACHE_REUSED = "Configuration cache entry reused."
+
 fun File.buildWithArgs(vararg tasks: String): BuildResult = prepareBuild(*tasks).build()
 
 fun File.buildWithArgsAndFail(vararg tasks: String): BuildResult =
