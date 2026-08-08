@@ -488,6 +488,254 @@ class CfPluginFunctionalTest : KotlinPluginFunctionalTest() {
   }
 
   @Test
+  fun `test excludeTests omits the dependencies from the test configurations`() {
+    buildFile.appendText(
+      """
+      configure<CheckerFrameworkExtension> {
+        version = "$TEST_CF_VERSION"
+        checkers = listOf("org.checkerframework.checker.tainting.TaintingChecker")
+        excludeTests = true
+      }
+      tasks.register("printCFConfigurations") {
+        // Only the annotation processor path is examined. checker-qual is on the test compile
+        // classpath no matter what `excludeTests` says, because testImplementation extends the
+        // main source set's implementation configuration.
+        val mainProcessorPath = configurations["annotationProcessor"]
+        val testProcessorPath = configurations["testAnnotationProcessor"]
+        val hasChecker = { c: Configuration -> c.files.any { it.name.startsWith("checker-3") } }
+        doLast {
+          println("MAIN_HAS_CF=" + hasChecker(mainProcessorPath))
+          println("TEST_HAS_CF=" + hasChecker(testProcessorPath))
+        }
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgs("printCFConfigurations")
+
+    // then
+    assertThat(result.output).contains("MAIN_HAS_CF=true")
+    assertThat(result.output).contains("TEST_HAS_CF=false")
+  }
+
+  @Test
+  fun `test dependencies that the checkerFramework configuration inherits are used for tests`() {
+    buildFile.appendText(
+      """
+      val cfParent by configurations.creating
+      configurations["checkerFramework"].extendsFrom(cfParent)
+      dependencies {
+        cfParent("org.checkerframework:checker:$TEST_CF_VERSION")
+        checkerQual("org.checkerframework:checker-qual:$TEST_CF_VERSION")
+      }
+      configure<CheckerFrameworkExtension> {
+        // No dependency is added by default, so the only checker.jar is the inherited one.
+        version = "dependencies"
+        checkers = listOf("org.checkerframework.checker.tainting.TaintingChecker")
+        extraJavacArgs = listOf("-Afilenames")
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+    testProjectDir.writeTestClass()
+
+    // when
+    val result = testProjectDir.buildWithArgs("compileTestJava")
+
+    // then
+    assertThat(result.task(":compileTestJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(result.output).containsMatch("Note: TaintingChecker is type-checking .*Success.java")
+    assertThat(result.output).containsMatch("Note: TaintingChecker is type-checking .*Test.java")
+  }
+
+  @Test
+  fun `test dependency constraints on the checkerFramework configuration are used`() {
+    buildFile.appendText(
+      """
+      dependencies {
+        // The version comes from the constraint below, not from this declaration.
+        checkerFramework("org.checkerframework:checker")
+        checkerQual("org.checkerframework:checker-qual:$TEST_CF_VERSION")
+        constraints {
+          checkerFramework("org.checkerframework:checker") {
+            version { require("$TEST_CF_VERSION") }
+            because("the test pins the Checker Framework version")
+          }
+        }
+      }
+      configure<CheckerFrameworkExtension> {
+        version = "dependencies"
+        checkers = listOf("org.checkerframework.checker.tainting.TaintingChecker")
+        extraJavacArgs = listOf("-Afilenames")
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+    testProjectDir.writeTestClass()
+
+    // when
+    val result = testProjectDir.buildWithArgs("compileTestJava")
+
+    // then
+    assertThat(result.task(":compileTestJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(result.output).containsMatch("Note: TaintingChecker is type-checking .*Success.java")
+    assertThat(result.output).containsMatch("Note: TaintingChecker is type-checking .*Test.java")
+  }
+
+  @Test
+  fun `test a dependency constraint on a project is used`() {
+    // A constraint on a project makes the project replace an external module with the same
+    // coordinates. Recreating the constraint from its group and name would make it an ordinary
+    // module constraint, which leaves the external module in place.
+    settingsFile.appendText(
+      """
+      include(":cfFork")
+      """
+        .trimIndent()
+    )
+    testProjectDir
+      .resolve("cfFork")
+      .apply { mkdirs() }
+      .resolve("build.gradle.kts")
+      .writeText(
+        """
+        plugins {
+          `java-library`
+        }
+        group = "org.checkerframework.test"
+        version = "1.0"
+        """
+          .trimIndent()
+      )
+    testProjectDir
+      .resolve("repo/org/checkerframework/test/cfFork/0.9")
+      .apply { mkdirs() }
+      .resolve("cfFork-0.9.pom")
+      .writeText(
+        """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <project xmlns="http://maven.apache.org/POM/4.0.0">
+          <modelVersion>4.0.0</modelVersion>
+          <groupId>org.checkerframework.test</groupId>
+          <artifactId>cfFork</artifactId>
+          <version>0.9</version>
+          <packaging>jar</packaging>
+        </project>
+        """
+          .trimIndent()
+      )
+    buildFile.appendText(
+      """
+      repositories {
+        maven { url = uri("repo") }
+      }
+      dependencies {
+        checkerFramework("org.checkerframework.test:cfFork:0.9")
+        constraints {
+          checkerFramework(project(":cfFork")) {
+            because("the test replaces the published fork with the local one")
+          }
+        }
+      }
+      configure<CheckerFrameworkExtension> {
+        version = "dependencies"
+        checkers = listOf("org.checkerframework.checker.tainting.TaintingChecker")
+      }
+      """
+        .trimIndent()
+    )
+
+    // when
+    val result =
+      testProjectDir.buildWithArgs(
+        "dependencyInsight",
+        "--configuration",
+        "annotationProcessor",
+        "--dependency",
+        "cfFork",
+      )
+
+    // then
+    assertThat(result.output).contains("project :cfFork")
+    assertThat(result.output).contains("the test replaces the published fork with the local one")
+  }
+
+  @Test
+  fun `test dependencies are added even if a classpath is resolved while the build script runs`() {
+    buildFile.appendText(
+      """
+      configure<CheckerFrameworkExtension> {
+        version = "$TEST_CF_VERSION"
+        checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+      }
+      // Resolve a classpath while the build script runs, before the plugin has finished
+      // configuring the project.
+      val resolvedEarly = configurations["annotationProcessor"].files.map { it.name }
+      tasks.register("printResolvedEarly") {
+        doLast { println("RESOLVED_EARLY=" + resolvedEarly.joinToString(",")) }
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgs("printResolvedEarly")
+
+    // then
+    assertThat(result.task(":printResolvedEarly")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(result.output).containsMatch("RESOLVED_EARLY=.*checker-$TEST_CF_VERSION")
+  }
+
+  @Test
+  fun `test exclude rules that the checkerFramework configuration inherits are used`() {
+    buildFile.appendText(
+      """
+      val cfParent by configurations.creating {
+        exclude(mapOf("group" to "org.checkerframework", "module" to "checker-qual"))
+      }
+      configurations["checkerFramework"].extendsFrom(cfParent)
+      configure<CheckerFrameworkExtension> {
+        version = "$TEST_CF_VERSION"
+        checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+      }
+      tasks.register("printCFConfigurations") {
+        val mainProcessorPath = configurations["annotationProcessor"]
+        val testProcessorPath = configurations["testAnnotationProcessor"]
+        val hasCheckerQual = { c: Configuration ->
+          c.files.any { it.name.startsWith("checker-qual") }
+        }
+        doLast {
+          println("MAIN_HAS_CHECKER_QUAL=" + hasCheckerQual(mainProcessorPath))
+          println("TEST_HAS_CHECKER_QUAL=" + hasCheckerQual(testProcessorPath))
+        }
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgs("printCFConfigurations")
+
+    // then
+    // checker.jar depends on checker-qual.jar, so the exclude rule is observable only if the
+    // annotation processor paths honor the rule that the checkerFramework configuration inherits.
+    assertThat(result.output).contains("MAIN_HAS_CHECKER_QUAL=false")
+    assertThat(result.output).contains("TEST_HAS_CHECKER_QUAL=false")
+  }
+
+  @Test
   fun `test cfVersion extra property`() {
     buildFile.appendText(
       """
