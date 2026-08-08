@@ -565,6 +565,21 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
         throw IllegalStateException("Must specify checkers for the Checker Framework.")
       }
 
+      // The manifest directory is written by the writeCheckerManifest task, which runs only if some
+      // compilation had the Checker Framework enabled when Gradle computed the task graph. If the
+      // Checker Framework was enabled after that, the manifest does not exist, javac's annotation
+      // processor auto-discovery finds no checker, and this compilation would silently type-check
+      // nothing. Fail instead.
+      if (
+        cfManifestFiles.files.none { File(it, WriteCheckerManifestTask.PROCESSOR_FILE_NAME).isFile }
+      ) {
+        throw IllegalStateException(
+          "The Checker Framework manifest was not written, so no checker would run on ${task.path}." +
+            " The Checker Framework cannot be enabled after Gradle has computed the task graph;" +
+            " enable it while the build script runs instead."
+        )
+      }
+
       // Must fork for the JVM arguments to be applied. Configuration time requests forking if the
       // Checker Framework was enabled then, but this ensures that no other configuration has undone
       // it and that a compilation that the user enabled later forks as well.

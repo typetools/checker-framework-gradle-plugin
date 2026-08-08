@@ -697,6 +697,32 @@ class CfPluginFunctionalTest : KotlinPluginFunctionalTest() {
   }
 
   @Test
+  fun `test enabling the Checker Framework after the task graph is computed fails`() {
+    buildFile.appendText(
+      """
+      configure<CheckerFrameworkExtension> {
+        version = "$TEST_CF_VERSION"
+        checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+        skipCheckerFramework = true
+      }
+      // Too late: the writeCheckerManifest task is not in the task graph, so no checker would run.
+      gradle.taskGraph.whenReady {
+        the<CheckerFrameworkExtension>().skipCheckerFramework = false
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgsAndFail("compileJava")
+
+    // then
+    assertThat(result.output).contains("The Checker Framework manifest was not written")
+  }
+
+  @Test
   fun `test exclude rules that the checkerFramework configuration inherits are used`() {
     buildFile.appendText(
       """
