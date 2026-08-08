@@ -486,4 +486,51 @@ class CfPluginFunctionalTest : KotlinPluginFunctionalTest() {
     assertThat(result.output)
       .doesNotContainMatch("Note: TaintingChecker is type-checking .*Test.java")
   }
+
+  @Test
+  fun `test cfVersion extra property`() {
+    buildFile.appendText(
+      """
+      extra["cfVersion"] = "$TEST_CF_VERSION"
+      configure<CheckerFrameworkExtension> {
+        checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+        extraJavacArgs = listOf("-Aversion")
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgs("compileJava")
+
+    // then
+    assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(result.output).contains("Note: Checker Framework $TEST_CF_VERSION")
+  }
+
+  @Test
+  fun `test skipCheckerFramework extra property`() {
+    buildFile.appendText(
+      """
+      extra["skipCheckerFramework"] = "true"
+      configure<CheckerFrameworkExtension> {
+        version = "$TEST_CF_VERSION"
+        checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+        extraJavacArgs = listOf("-Aversion")
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgs("compileJava")
+
+    // then
+    assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(result.output).doesNotContain("Note: Checker Framework $TEST_CF_VERSION")
+  }
 }
