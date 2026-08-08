@@ -153,7 +153,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
 
     // Read the project property again after the build script has run, because the build script may
     // define it.
-    project.afterEvaluate { setCFVersionFromProjectProperty(project, cfVersion) }
+    afterEvaluateOrNow(project) { setCFVersionFromProjectProperty(project, cfVersion) }
 
     // Handle Lombok
     project.pluginManager.withPlugin("io.freefair.lombok") {
@@ -299,7 +299,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
     val delombokTaskProvider: TaskProvider<Task> =
       project.tasks.named(sourceSet.getTaskName("delombok", ""), Task::class.java)
 
-    project.afterEvaluate {
+    afterEvaluateOrNow(project) {
       val delombokTask = delombokTaskProvider.get()
       val checkerTask = checkerTaskProvider.get()
       val compileTask = compileTaskProvider.get()
@@ -322,6 +322,22 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
       checkerTask.options.compilerArgs = ArrayList(compileTask.options.compilerArgs)
       checkerTask.options.annotationProcessorPath = compileTask.options.annotationProcessorPath
       project.tasks.named("build").configure { dependsOn(checkerTask) }
+    }
+  }
+
+  /**
+   * Runs {@code action} after {@code project} has been evaluated, or immediately if {@code project}
+   * has already been evaluated. Calling [Project.afterEvaluate] on an already-evaluated project is
+   * an error.
+   *
+   * @param project the project to configure
+   * @param action the configuration to run
+   */
+  private fun afterEvaluateOrNow(project: Project, action: (Project) -> Unit) {
+    if (project.state.executed) {
+      action(project)
+    } else {
+      project.afterEvaluate { action(this) }
     }
   }
 
