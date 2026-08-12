@@ -781,4 +781,68 @@ class CfPluginFunctionalTest : KotlinPluginFunctionalTest() {
     assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
     assertThat(result.output).doesNotContain("Note: Checker Framework $TEST_CF_VERSION")
   }
+
+  @Test
+  fun `test writeCheckerManifest with no checkers`() {
+    buildFile.appendText(
+      """
+      configure<CheckerFrameworkExtension> {
+        version = "$TEST_CF_VERSION"
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgs("writeCheckerManifest")
+
+    // then
+    assertThat(result.task(":writeCheckerManifest")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+  }
+
+  @Test
+  fun `test incrementalize false removes the incremental manifest`() {
+    val buildFileText = buildFile.readText()
+    buildFile.writeText(
+      buildFileText +
+        """
+        configure<CheckerFrameworkExtension> {
+          version = "$TEST_CF_VERSION"
+          checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+        }
+        """
+          .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+    val incrementalManifest =
+      testProjectDir.resolve(
+        "build/checkerframework/META-INF/gradle/incremental.annotation.processors"
+      )
+
+    // when
+    testProjectDir.buildWithArgs("compileJava")
+
+    // then
+    assertThat(incrementalManifest.exists()).isTrue()
+
+    // when incremental annotation processing is turned off
+    buildFile.writeText(
+      buildFileText +
+        """
+        configure<CheckerFrameworkExtension> {
+          version = "$TEST_CF_VERSION"
+          checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+          incrementalize = false
+        }
+        """
+          .trimIndent()
+    )
+    testProjectDir.buildWithArgs("compileJava")
+
+    // then
+    assertThat(incrementalManifest.exists()).isFalse()
+  }
 }
