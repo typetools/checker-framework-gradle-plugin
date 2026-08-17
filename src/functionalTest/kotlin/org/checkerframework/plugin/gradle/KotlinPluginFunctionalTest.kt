@@ -2,6 +2,7 @@ package org.checkerframework.plugin.gradle
 
 import java.io.File
 import java.util.Properties
+import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.io.TempDir
 
@@ -13,6 +14,11 @@ abstract class KotlinPluginFunctionalTest {
 
   @BeforeEach
   open fun setupProject() {
+    assumeTrue(
+      testGradleVersion >= minimumKotlinDslGradleVersion,
+      "Gradle ${testGradleVersion.version}'s Kotlin DSL cannot read this plugin's Kotlin metadata;" +
+        " the Groovy tests cover this Gradle version.",
+    )
     testProjectDir.resolve("gradle.properties").outputStream().use {
       Properties().apply {
         setProperty("org.gradle.java.home", testJavaHome)
