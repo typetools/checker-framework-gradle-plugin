@@ -42,15 +42,11 @@ abstract class WriteCheckerManifestTask : DefaultTask() {
   @TaskAction
   fun run() {
     val cfBuildDirAsFile = cfBuildDir.get().asFile
-    // Discard files written by a previous run, which might no longer be desired.
-    // deleteRecursively() is best-effort: it returns false, rather than throwing, if it does not
-    // delete everything. A failure is not reported here, because every file that this run should
-    // produce is overwritten below and every file that this run must not leave behind is deleted
-    // by deleteManifestFile, which does report a failure.
-    cfBuildDirAsFile.deleteRecursively()
     if (!cfBuildDirAsFile.isDirectory && !cfBuildDirAsFile.mkdirs()) {
       throw IOException("Could not create directory $cfBuildDirAsFile")
     }
+    // This task writes only PROCESSOR_FILE_NAME and INCREMENTAL_FILE_NAME, so writing or deleting
+    // each of those two files discards everything a previous run left behind.
     val checkerNames = checkers.get()
     if (checkerNames.isEmpty()) {
       // No need to write the files if no checkers are specified.
