@@ -664,7 +664,8 @@ class CfPluginFunctionalTest : KotlinPluginFunctionalTest() {
       )
 
     // then
-    assertThat(result.output).contains("project :cfFork")
+    // Gradle 9.6 and later quote the project path in the dependency insight report.
+    assertThat(result.output).containsMatch("project '?:cfFork'?")
     assertThat(result.output).contains("the test replaces the published fork with the local one")
   }
 
