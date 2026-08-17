@@ -21,6 +21,9 @@ The plugin supports Gradle versions 7.3 and above, which requires Java 17 and
 above.  Although you must compile your project using at least Java 17, the
 compiled classfiles can be compatible with, and can run on, any version of Java.
 
+The plugin is compatible with Gradle's [configuration
+cache](https://docs.gradle.org/current/userguide/configuration_cache.html).
+
 ## Configuration
 
 ### The Checker Framework version
