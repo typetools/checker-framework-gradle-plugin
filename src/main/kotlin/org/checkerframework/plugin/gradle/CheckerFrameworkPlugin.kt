@@ -48,7 +48,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
     // has run. This provider holds a Project, so it must not be captured by a task action; it is
     // queried only while a configuration is being resolved.
     val cfVersion: Provider<String> =
-      project.provider { cfVersionProjectProperty(project) }.orElse(cfExtension.version)
+      project.provider { projectProperty(project, "cfVersion") }.orElse(cfExtension.version)
 
     val cfConfiguration =
       project.configurations.register(CONFIGURATION_NAME) {
@@ -206,20 +206,36 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
   }
 
   /**
-   * Returns the value of the "cfVersion" project property, or null if the property is not set.
+   * Returns the value of the given project property, or null if the property is not set. Throws an
+   * exception if the property is set to a null value.
+   *
+   * [Project.findProperty] is used rather than
+   * [org.gradle.api.provider.ProviderFactory.gradleProperty] for three reasons:
+   * * gradleProperty does not see extra properties, such as those that a build script sets via
+   *   `ext`.
+   * * gradleProperty does not see a gradle.properties file in a subproject directory:
+   *   https://github.com/gradle/gradle/issues/23572, still open as of Gradle 9.2.1.
+   * * On Gradle 7.3, the oldest version that this plugin supports, obtaining a gradleProperty value
+   *   at configuration time fails when the configuration cache is enabled: "Cannot obtain value
+   *   from provider of Gradle property 'p' at configuration time. Use a provider returned by
+   *   'forUseAtConfigurationTime()' instead." That method was deprecated in Gradle 7.4 and removed
+   *   in Gradle 8.0, so this plugin cannot call it.
+   *
+   * The workaround in https://github.com/gradle/gradle/issues/23572#issuecomment-2563603855 makes
+   * gradleProperty usable despite the second problem, but it reimplements property lookup and does
+   * not address the other two problems, so findProperty remains simpler and more correct here.
    *
    * @param project the project whose property to read
+   * @param propertyName the name of the property to read
    */
-  private fun cfVersionProjectProperty(project: Project): String? {
-    // Project.findProperty is used rather than ProviderFactory.gradleProperty because the latter
-    // does not see extra properties and cannot be queried at configuration time on Gradle 7.3.
-    if (!project.hasProperty("cfVersion")) {
+  private fun projectProperty(project: Project, propertyName: String): String? {
+    if (!project.hasProperty(propertyName)) {
       return null
     }
-    val version =
-      project.findProperty("cfVersion")
-        ?: throw IllegalStateException("cfVersion property is set but has a null value")
-    return version.toString()
+    val value =
+      project.findProperty(propertyName)
+        ?: throw IllegalStateException("$propertyName property is set but has a null value")
+    return value.toString()
   }
 
   /**
@@ -230,16 +246,8 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
    *
    * @param project the project whose property to read
    */
-  private fun skipCheckerFrameworkProperty(project: Project): Boolean? {
-    // Project.findProperty is used rather than ProviderFactory.gradleProperty because the latter
-    // does not see extra properties and cannot be queried at configuration time on Gradle 7.3.
-    if (!project.hasProperty("skipCheckerFramework")) {
-      return null
-    }
-    // A property that is set to a null value means the same as one that is set to "false".
-    val skipCfProperty = project.findProperty("skipCheckerFramework") ?: return false
-    return skipCfProperty.toString() != "false"
-  }
+  private fun skipCheckerFrameworkProperty(project: Project): Boolean? =
+    projectProperty(project, "skipCheckerFramework")?.let { it != "false" }
 
   /**
    * Add the default dependencies for the given {@code jarName}.

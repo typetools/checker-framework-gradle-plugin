@@ -622,6 +622,38 @@ class CfPluginFunctionalTest : KotlinPluginFunctionalTest() {
     assertThat(incrementalManifest.exists()).isFalse()
   }
 
+  /**
+   * A project property that is set to a null value is a build script error, and is diagnosed the
+   * same way for every project property that this plugin reads.
+   */
+  @Test
+  fun `test project property set to a null value`() {
+    for (propertyName in listOf("cfVersion", "skipCheckerFramework")) {
+      val buildFileText = buildFile.readText()
+      buildFile.writeText(
+        buildFileText +
+          """
+          extra["$propertyName"] = null
+          configure<CheckerFrameworkExtension> {
+            version = "$TEST_CF_VERSION"
+            checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+          }
+          """
+            .trimIndent()
+      )
+      // given
+      testProjectDir.writeEmptyClass()
+
+      // when
+      val result = testProjectDir.buildWithArgsAndFail("compileJava")
+
+      // then
+      assertThat(result.output).contains("$propertyName property is set but has a null value")
+
+      buildFile.writeText(buildFileText)
+    }
+  }
+
   @Test
   fun `test configuration cache is stored and reused`() {
     buildFile.appendText(
