@@ -9,6 +9,15 @@ val testJavaHome = System.getProperty("test.java-home", System.getProperty("java
 val testGradleVersion =
   System.getProperty("test.gradle-version")?.let(GradleVersion::version) ?: GradleVersion.current()
 
+/**
+ * The oldest Gradle version whose Kotlin DSL can use this plugin. This plugin is compiled by the
+ * Kotlin compiler that the build's own Gradle embeds, and an older Gradle's Kotlin DSL cannot read
+ * that compiler's metadata: it fails with "Protocol message contained an invalid tag (zero)" while
+ * configuring the project. A build script written in Groovy is unaffected, so the plugin still
+ * supports the Gradle version that [CheckerFrameworkPlugin.apply] requires.
+ */
+val minimumKotlinDslGradleVersion: GradleVersion = GradleVersion.version("8.2.1")
+
 fun File.writeEmptyClass() {
   File(this.resolve("src/main/java/test").apply { mkdirs() }, "Success.java").apply {
     createNewFile()
