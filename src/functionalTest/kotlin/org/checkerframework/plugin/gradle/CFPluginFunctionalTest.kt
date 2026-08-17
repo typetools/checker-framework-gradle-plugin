@@ -785,6 +785,30 @@ class CfPluginFunctionalTest : KotlinPluginFunctionalTest() {
   }
 
   @Test
+  fun `test cfVersion extra property with configuration resolved by build script`() {
+    buildFile.appendText(
+      """
+      extra["cfVersion"] = "$TEST_CF_VERSION"
+      configurations.getByName("annotationProcessor").files
+      configure<CheckerFrameworkExtension> {
+        checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+        extraJavacArgs = listOf("-Aversion")
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgs("compileJava")
+
+    // then
+    assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(result.output).contains("Note: Checker Framework $TEST_CF_VERSION")
+  }
+
+  @Test
   fun `test skipCheckerFramework extra property`() {
     buildFile.appendText(
       """
