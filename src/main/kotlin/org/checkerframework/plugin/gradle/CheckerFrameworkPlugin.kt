@@ -45,7 +45,8 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
     // read each time the version is queried, rather than once while the plugin is applied, because
     // the build script may define the property. A build script may also resolve a configuration,
     // which queries the version, so it is not enough to read the property after the build script
-    // has run.
+    // has run. This provider holds a Project, so it must not be captured by a task action; it is
+    // queried only while a configuration is being resolved.
     val cfVersion: Provider<String> =
       project.provider { cfVersionProjectProperty(project) }.orElse(cfExtension.version)
 
@@ -80,6 +81,9 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
     }
 
     val cfManifestDir = project.layout.buildDirectory.dir("checkerframework")
+    // A FileCollection, unlike a Project, can be captured by a task action: the configuration cache
+    // can serialize it.
+    val cfManifestFiles = project.files(cfManifestDir)
 
     project.tasks.register("writeCheckerManifest", WriteCheckerManifestTask::class.java) {
       group = "Checker Framework tasks"
@@ -127,8 +131,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
           }
           // If the annotationProcessorPath is null, then annotation processing is disabled, so no
           // need to add things to the path.
-          options.annotationProcessorPath =
-            options.annotationProcessorPath?.plus(project.files(cfManifestDir))
+          options.annotationProcessorPath = options.annotationProcessorPath?.plus(cfManifestFiles)
 
           val processorArgIndex = options.compilerArgs.indexOf("-processor")
           if (processorArgIndex != -1 && processorArgIndex + 1 < options.compilerArgs.size) {
@@ -140,9 +143,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
             val cfProcessors = checkers.joinToString(separator = ",")
             options.compilerArgs[processorArgIndex + 1] = "$oldProcessors,$cfProcessors"
           } else if (processorArgIndex != -1) {
-            project.logger.warn(
-              "Found -processor argument without a value; no checkers will be used."
-            )
+            logger.warn("Found -processor argument without a value; no checkers will be used.")
           }
           // Must fork for the JVM arguments to be applied.
           options.isFork = true
@@ -232,14 +233,19 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
   private fun skipCheckerFrameworkProperty(project: Project): Boolean? {
     // Project.findProperty is used rather than ProviderFactory.gradleProperty because the latter
     // does not see extra properties and cannot be queried at configuration time on Gradle 7.3.
-    val skipCfProperty = project.findProperty("skipCheckerFramework") ?: return null
+    if (!project.hasProperty("skipCheckerFramework")) {
+      return null
+    }
+    // A property that is set to a null value means the same as one that is set to "false".
+    val skipCfProperty = project.findProperty("skipCheckerFramework") ?: return false
     return skipCfProperty.toString() != "false"
   }
 
   /**
    * Add the default dependencies for the given {@code jarName}.
    *
-   * @param cfVersion the Checker Framework version, "local", or "dependencies"
+   * @param cfVersion a provider of the Checker Framework version, "local", or "dependencies"; the
+   *   provider may have no value
    * @param project current project
    * @param jarName name of the jar which is added as a dependency
    */
@@ -259,9 +265,10 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
 
   /**
    * Returns the default dependency on {@code jarName}, or null if the user asked that no dependency
-   * be added.
+   * be added. Throws an exception if {@code cfVersion} has no value.
    *
-   * @param cfVersion the Checker Framework version, "local", or "dependencies"
+   * @param cfVersion a provider of the Checker Framework version, "local", or "dependencies"; the
+   *   provider may have no value
    * @param dependencies creates the dependency
    * @param objects creates a file collection for a local jar
    * @param jarName name of the jar to depend on
