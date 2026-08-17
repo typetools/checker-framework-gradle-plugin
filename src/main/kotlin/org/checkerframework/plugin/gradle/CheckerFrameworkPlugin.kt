@@ -13,7 +13,6 @@ import org.gradle.api.model.ObjectFactory
 import org.gradle.api.plugins.ExtensionAware
 import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.plugins.JavaPluginExtension
-import org.gradle.api.provider.Property
 import org.gradle.api.provider.Provider
 import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.SourceSetContainer
@@ -44,12 +43,12 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
 
     // The Checker Framework version to use: the value of the "cfVersion" project property if it is
     // set, and the value of the `version` configuration option otherwise. The project property is
-    // read both now and after the build script has run: now, so that the version is correct even if
-    // a configuration is resolved while the build script runs, and again afterwards because the
-    // build script may define the property.
-    val cfVersion: Property<String> = project.objects.property(String::class.java)
-    cfVersion.convention(cfExtension.version)
-    setCFVersionFromProjectProperty(project, cfVersion)
+    // read each time the version is queried, rather than once while the plugin is applied, because
+    // the build script may define the property. A build script may also resolve a configuration,
+    // which queries the version, so it is not enough to read the property after the build script
+    // has run.
+    val cfVersion: Provider<String> =
+      project.provider { cfVersionProjectProperty(project) }.orElse(cfExtension.version)
 
     val cfConfiguration =
       project.configurations.register(CONFIGURATION_NAME) {
@@ -150,10 +149,6 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
         }
       }
     }
-
-    // Read the project property again after the build script has run, because the build script may
-    // define it.
-    afterEvaluateOrNow(project) { setCFVersionFromProjectProperty(project, cfVersion) }
 
     // Handle Lombok
     project.pluginManager.withPlugin("io.freefair.lombok") {
@@ -342,22 +337,20 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
   }
 
   /**
-   * Sets {@code cfVersion} from the "cfVersion" project property, if that property is set. Does
-   * nothing if the property is not set, so that a caller that runs after the build script does not
-   * undo a value that an earlier call established.
+   * Returns the value of the "cfVersion" project property, or null if the property is not set.
    *
    * @param project the project whose property to read
-   * @param cfVersion the Checker Framework version to set
    */
-  private fun setCFVersionFromProjectProperty(project: Project, cfVersion: Property<String>) {
+  private fun cfVersionProjectProperty(project: Project): String? {
     // Project.findProperty is used rather than ProviderFactory.gradleProperty because the latter
     // does not see extra properties and cannot be queried at configuration time on Gradle 7.3.
-    if (project.hasProperty("cfVersion")) {
-      val version =
-        project.findProperty("cfVersion")
-          ?: throw IllegalStateException("cfVersion property is set but has a null value")
-      cfVersion.set(version.toString())
+    if (!project.hasProperty("cfVersion")) {
+      return null
     }
+    val version =
+      project.findProperty("cfVersion")
+        ?: throw IllegalStateException("cfVersion property is set but has a null value")
+    return version.toString()
   }
 
   /**
