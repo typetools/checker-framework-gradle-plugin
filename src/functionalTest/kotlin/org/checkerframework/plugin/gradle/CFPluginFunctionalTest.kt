@@ -869,4 +869,70 @@ class CfPluginFunctionalTest : KotlinPluginFunctionalTest() {
     // then
     assertThat(incrementalManifest.exists()).isFalse()
   }
+
+  /**
+   * A project property that is set to a null value is a build script error, and is diagnosed the
+   * same way for every project property that this plugin reads.
+   */
+  @Test
+  fun `test project property set to a null value`() {
+    for (propertyName in listOf("cfVersion", "skipCheckerFramework")) {
+      val buildFileText = buildFile.readText()
+      buildFile.writeText(
+        buildFileText +
+          """
+          extra["$propertyName"] = null
+          configure<CheckerFrameworkExtension> {
+            version = "$TEST_CF_VERSION"
+            checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+          }
+          """
+            .trimIndent()
+      )
+      // given
+      testProjectDir.writeEmptyClass()
+
+      // when
+      val result = testProjectDir.buildWithArgsAndFail("compileJava")
+
+      // then
+      assertThat(result.output).contains("$propertyName property is set but has a null value")
+
+      buildFile.writeText(buildFileText)
+    }
+  }
+
+  @Test
+  fun `test configuration cache is stored and reused`() {
+    buildFile.appendText(
+      """
+      configure<CheckerFrameworkExtension> {
+        version = "$TEST_CF_VERSION"
+        checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when the configuration cache is written
+    val storeResult = testProjectDir.buildWithArgs("compileJava", "--configuration-cache")
+
+    // then
+    assertThat(storeResult.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(storeResult.output).contains("Configuration cache entry stored")
+    // A configuration cache problem discards the entry, on every Gradle version that supports the
+    // configuration cache, whether or not the problem also fails the build.
+    assertThat(storeResult.output).doesNotContain("Configuration cache entry discarded")
+
+    // when the configuration cache is read.  The Checker Framework must still report an error, to
+    // show that the compilation is configured from the cache rather than skipped.
+    testProjectDir.writeNullnessFailure()
+    val reuseResult = testProjectDir.buildWithArgsAndFail("compileJava", "--configuration-cache")
+
+    // then
+    assertThat(reuseResult.output).contains("Configuration cache entry reused")
+    assertThat(reuseResult.output).contains(NULLNESS_FAILURE)
+  }
 }
