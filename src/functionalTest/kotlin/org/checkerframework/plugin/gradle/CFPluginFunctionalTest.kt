@@ -664,7 +664,7 @@ class CfPluginFunctionalTest : KotlinPluginFunctionalTest() {
       )
 
     // then
-    assertThat(result.output).contains("project :cfFork")
+    assertThat(result.output).containsMatch("project '?:cfFork'?") // Gradle 9.6+ uses quotes.
     assertThat(result.output).contains("the test replaces the published fork with the local one")
   }
 
