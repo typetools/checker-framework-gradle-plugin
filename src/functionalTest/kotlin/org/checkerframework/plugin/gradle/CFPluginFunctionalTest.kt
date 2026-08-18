@@ -488,6 +488,77 @@ class CfPluginFunctionalTest : KotlinPluginFunctionalTest() {
   }
 
   @Test
+  fun `test cfVersion extra property`() {
+    buildFile.appendText(
+      """
+      extra["cfVersion"] = "$TEST_CF_VERSION"
+      configure<CheckerFrameworkExtension> {
+        checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+        extraJavacArgs = listOf("-Aversion")
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgs("compileJava")
+
+    // then
+    assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(result.output).contains("Note: Checker Framework $TEST_CF_VERSION")
+  }
+
+  @Test
+  fun `test cfVersion extra property with configuration resolved by build script`() {
+    buildFile.appendText(
+      """
+      extra["cfVersion"] = "$TEST_CF_VERSION"
+      configurations.getByName("annotationProcessor").files
+      configure<CheckerFrameworkExtension> {
+        checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+        extraJavacArgs = listOf("-Aversion")
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgs("compileJava")
+
+    // then
+    assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(result.output).contains("Note: Checker Framework $TEST_CF_VERSION")
+  }
+
+  @Test
+  fun `test skipCheckerFramework extra property`() {
+    buildFile.appendText(
+      """
+      extra["skipCheckerFramework"] = "true"
+      configure<CheckerFrameworkExtension> {
+        version = "$TEST_CF_VERSION"
+        checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+        extraJavacArgs = listOf("-Aversion")
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgs("compileJava")
+
+    // then
+    assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(result.output).doesNotContain("Note: Checker Framework $TEST_CF_VERSION")
+  }
+
+  @Test
   fun `test writeCheckerManifest with no checkers`() {
     buildFile.appendText(
       """
@@ -549,5 +620,37 @@ class CfPluginFunctionalTest : KotlinPluginFunctionalTest() {
 
     // then
     assertThat(incrementalManifest.exists()).isFalse()
+  }
+
+  /**
+   * A project property that is set to a null value is a build script error, and is diagnosed the
+   * same way for every project property that this plugin reads.
+   */
+  @Test
+  fun `test project property set to a null value`() {
+    for (propertyName in listOf("cfVersion", "skipCheckerFramework")) {
+      val buildFileText = buildFile.readText()
+      buildFile.writeText(
+        buildFileText +
+          """
+          extra["$propertyName"] = null
+          configure<CheckerFrameworkExtension> {
+            version = "$TEST_CF_VERSION"
+            checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+          }
+          """
+            .trimIndent()
+      )
+      // given
+      testProjectDir.writeEmptyClass()
+
+      // when
+      val result = testProjectDir.buildWithArgsAndFail("compileJava")
+
+      // then
+      assertThat(result.output).contains("$propertyName property is set but has a null value")
+
+      buildFile.writeText(buildFileText)
+    }
   }
 }

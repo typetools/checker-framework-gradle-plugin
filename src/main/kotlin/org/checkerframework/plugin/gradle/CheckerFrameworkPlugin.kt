@@ -6,9 +6,13 @@ import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.artifacts.Configuration
+import org.gradle.api.artifacts.Dependency
+import org.gradle.api.artifacts.dsl.DependencyHandler
+import org.gradle.api.model.ObjectFactory
 import org.gradle.api.plugins.ExtensionAware
 import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.plugins.JavaPluginExtension
+import org.gradle.api.provider.Provider
 import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.SourceSetContainer
 import org.gradle.api.tasks.TaskProvider
@@ -36,18 +40,28 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
     val cfExtension =
       project.extensions.create("checkerFramework", CheckerFrameworkExtension::class.java)
 
+    // The Checker Framework version to use: the value of the "cfVersion" project property if it is
+    // set, and the value of the `version` configuration option otherwise. The project property is
+    // read each time the version is queried, rather than once while the plugin is applied, because
+    // the build script may define the property. A build script may also resolve a configuration,
+    // which queries the version, so it is not enough to read the property after the build script
+    // has run. This provider holds a Project, so it must not be captured by a task action; it is
+    // queried only while a configuration is being resolved.
+    val cfVersion: Provider<String> =
+      project.provider { projectProperty(project, "cfVersion") }.orElse(cfExtension.version)
+
     val cfConfiguration =
       project.configurations.register(CONFIGURATION_NAME) {
         description =
           "Checker Framework dependencies, will be extended by all source sets' annotationProcessor configurations"
-        addDefaultCFDependencies(cfExtension, project, "checker")
+        addDefaultCFDependencies(cfVersion, project, "checker")
       }
 
     val checkerQualConfiguration =
       project.configurations.register("checkerQual") {
         description =
           "Pluggable type-checker qualifier dependencies, will be extended by all source sets' implementation configuration"
-        addDefaultCFDependencies(cfExtension, project, "checker-qual")
+        addDefaultCFDependencies(cfVersion, project, "checker-qual")
       }
 
     // Add checker.jar to all annotationProcessor configurations and checker-qual.jar to all
@@ -67,6 +81,9 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
     }
 
     val cfManifestDir = project.layout.buildDirectory.dir("checkerframework")
+    // A FileCollection, unlike a Project, can be captured by a task action: the configuration cache
+    // can serialize it.
+    val cfManifestFiles = project.files(cfManifestDir)
 
     project.tasks.register("writeCheckerManifest", WriteCheckerManifestTask::class.java) {
       group = "Checker Framework tasks"
@@ -84,11 +101,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
       // If the user passes -PskipCheckerFramework, then use that value rather than the value from
       // the configuration.
       val skipCf =
-        if (project.hasProperty("skipCheckerFramework")) {
-          (project.properties["skipCheckerFramework"]?.toString() ?: "false") != "false"
-        } else {
-          cfExtension.skipCheckerFramework.getOrElse(false)
-        }
+        skipCheckerFrameworkProperty(project) ?: cfExtension.skipCheckerFramework.getOrElse(false)
 
       if (
         skipCf ||
@@ -118,8 +131,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
           }
           // If the annotationProcessorPath is null, then annotation processing is disabled, so no
           // need to add things to the path.
-          options.annotationProcessorPath =
-            options.annotationProcessorPath?.plus(project.files(cfManifestDir))
+          options.annotationProcessorPath = options.annotationProcessorPath?.plus(cfManifestFiles)
 
           val processorArgIndex = options.compilerArgs.indexOf("-processor")
           if (processorArgIndex != -1 && processorArgIndex + 1 < options.compilerArgs.size) {
@@ -131,9 +143,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
             val cfProcessors = checkers.joinToString(separator = ",")
             options.compilerArgs[processorArgIndex + 1] = "$oldProcessors,$cfProcessors"
           } else if (processorArgIndex != -1) {
-            project.logger.warn(
-              "Found -processor argument without a value; no checkers will be used."
-            )
+            logger.warn("Found -processor argument without a value; no checkers will be used.")
           }
           // Must fork for the JVM arguments to be applied.
           options.isFork = true
@@ -196,65 +206,110 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
   }
 
   /**
+   * Returns the value of the given project property, or null if the property is not set. Throws an
+   * exception if the property is set to a null value.
+   *
+   * [Project.findProperty] is used rather than
+   * [org.gradle.api.provider.ProviderFactory.gradleProperty] for three reasons:
+   * * gradleProperty does not see extra properties, such as those that a build script sets via
+   *   `ext`.
+   * * gradleProperty does not see a gradle.properties file in a subproject directory:
+   *   https://github.com/gradle/gradle/issues/23572, still open as of Gradle 9.2.1.
+   * * On Gradle 7.3, the oldest version that this plugin supports, obtaining a gradleProperty value
+   *   at configuration time fails when the configuration cache is enabled: "Cannot obtain value
+   *   from provider of Gradle property 'p' at configuration time. Use a provider returned by
+   *   'forUseAtConfigurationTime()' instead." That method was deprecated in Gradle 7.4 and removed
+   *   in Gradle 8.0, so this plugin cannot call it.
+   *
+   * The workaround in https://github.com/gradle/gradle/issues/23572#issuecomment-2563603855 makes
+   * gradleProperty usable despite the second problem, but it reimplements property lookup and does
+   * not address the other two problems, so findProperty remains simpler and more correct here.
+   *
+   * @param project the project whose property to read
+   * @param propertyName the name of the property to read
+   */
+  private fun projectProperty(project: Project, propertyName: String): String? {
+    if (!project.hasProperty(propertyName)) {
+      return null
+    }
+    val value =
+      project.findProperty(propertyName)
+        ?: throw IllegalStateException("$propertyName property is set but has a null value")
+    return value.toString()
+  }
+
+  /**
+   * Returns the value of the "skipCheckerFramework" project property: true if the user asked that
+   * the Checker Framework not be run, false if the user asked that it be run, and null if the
+   * property is not set. The property, if set, overrides the `skipCheckerFramework` configuration
+   * option.
+   *
+   * @param project the project whose property to read
+   */
+  private fun skipCheckerFrameworkProperty(project: Project): Boolean? =
+    projectProperty(project, "skipCheckerFramework")?.let { it != "false" }
+
+  /**
    * Add the default dependencies for the given {@code jarName}.
    *
-   * @param cfExtension CF configuration
+   * @param cfVersion a provider of the Checker Framework version, "local", or "dependencies"; the
+   *   provider may have no value
    * @param project current project
    * @param jarName name of the jar which is added as a dependency
    */
   private fun Configuration.addDefaultCFDependencies(
-    cfExtension: CheckerFrameworkExtension,
+    cfVersion: Provider<String>,
     project: Project,
     jarName: String,
   ) {
     isCanBeConsumed = false
     isCanBeResolved = false
+    val dependencies = project.dependencies
+    val objects = project.objects
     defaultDependencies {
-      when (val version = getCFVersion(cfExtension, project)) {
-        "local" -> {
-          val cfHome =
-            System.getenv("CHECKERFRAMEWORK")
-              ?: throw IllegalStateException(
-                "CHECKERFRAMEWORK environment variable must be set when using local version"
-              )
-          val jarFile = File("$cfHome/checker/dist/$jarName.jar")
-          if (!jarFile.exists()) {
-            throw IllegalStateException(
-              "Could not find $jarName at ${jarFile.absolutePath}. " +
-                "Please ensure the Checker Framework is built."
-            )
-          }
-          add(project.dependencies.create(project.files(jarFile)))
-        }
-        "dependencies" -> {
-          // Don't add dependencies.
-        }
-        else -> {
-          add(project.dependencies.create("org.checkerframework:$jarName:$version"))
-        }
-      }
+      defaultCFDependency(cfVersion, dependencies, objects, jarName)?.let { add(it) }
     }
   }
 
   /**
-   * Get the version configuration value, which is a Checker Framework version, "local", or
-   * "dependencies".
+   * Returns the default dependency on {@code jarName}, or null if the user asked that no dependency
+   * be added. Throws an exception if {@code cfVersion} has no value.
    *
-   * @param cfExtension CF configuration
-   * @param project current project
-   * @return the version configuration value, which is a Checker Framework version, "local", or
-   *   "dependencies".
+   * @param cfVersion a provider of the Checker Framework version, "local", or "dependencies"; the
+   *   provider may have no value
+   * @param dependencies creates the dependency
+   * @param objects creates a file collection for a local jar
+   * @param jarName name of the jar to depend on
    */
-  private fun getCFVersion(cfExtension: CheckerFrameworkExtension, project: Project): String {
-    if (project.hasProperty("cfVersion")) {
-      return project.properties["cfVersion"]?.toString()
-        ?: throw IllegalStateException("cfVersion property is set but has a null value")
+  private fun defaultCFDependency(
+    cfVersion: Provider<String>,
+    dependencies: DependencyHandler,
+    objects: ObjectFactory,
+    jarName: String,
+  ): Dependency? {
+    return when (
+      val version =
+        cfVersion.orNull ?: throw IllegalStateException("Checker Framework version must be set.")
+    ) {
+      "local" -> {
+        val cfHome =
+          System.getenv("CHECKERFRAMEWORK")
+            ?: throw IllegalStateException(
+              "CHECKERFRAMEWORK environment variable must be set when using local version"
+            )
+        val jarFile = File("$cfHome/checker/dist/$jarName.jar")
+        if (!jarFile.exists()) {
+          throw IllegalStateException(
+            "Could not find $jarName at ${jarFile.absolutePath}. " +
+              "Please ensure the Checker Framework is built."
+          )
+        }
+        dependencies.create(objects.fileCollection().from(jarFile))
+      }
+      // The user asked that no dependency be added.
+      "dependencies" -> null
+      else -> dependencies.create("org.checkerframework:$jarName:$version")
     }
-
-    if (!cfExtension.version.isPresent) {
-      throw IllegalStateException("Checker Framework version must be set.")
-    }
-    return cfExtension.version.get()
   }
 
   /** Return true if the Name is a test name. */
