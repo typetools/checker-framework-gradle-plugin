@@ -2,6 +2,7 @@ package org.checkerframework.plugin.gradle
 
 import com.google.common.truth.Truth.assertThat
 import org.gradle.testkit.runner.TaskOutcome
+import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 
@@ -143,6 +144,10 @@ class CFGroovyPluginFunctionalTest : GroovyPluginFunctionalTest() {
 
   @Test
   fun `test lombok when applying the plugin after the project is evaluated`() {
+    assumeTrue(
+      testGradleVersion >= minimumLombokGradleVersion,
+      "The io.freefair.lombok plugin does not support Gradle ${testGradleVersion.version}.",
+    )
     buildFile.writeText(
       """
       plugins {
