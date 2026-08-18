@@ -574,6 +574,13 @@ class CfPluginFunctionalTest : KotlinPluginFunctionalTest() {
         checkers = listOf("org.checkerframework.checker.tainting.TaintingChecker")
         extraJavacArgs = listOf("-Afilenames")
       }
+      tasks.register("printCheckerJars") {
+        val testProcessorPath = configurations["testAnnotationProcessor"]
+        doLast {
+          val checkerJars = testProcessorPath.files.filter { it.name.startsWith("checker-3") }
+          println("CHECKER_JARS=" + checkerJars.joinToString(",") { it.name })
+        }
+      }
       """
         .trimIndent()
     )
@@ -582,12 +589,14 @@ class CfPluginFunctionalTest : KotlinPluginFunctionalTest() {
     testProjectDir.writeTestClass()
 
     // when
-    val result = testProjectDir.buildWithArgs("compileTestJava")
+    val result = testProjectDir.buildWithArgs("compileTestJava", "printCheckerJars")
 
     // then
     assertThat(result.task(":compileTestJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
     assertThat(result.output).containsMatch("Note: TaintingChecker is type-checking .*Success.java")
     assertThat(result.output).containsMatch("Note: TaintingChecker is type-checking .*Test.java")
+    // The version that javac runs is the one that the constraint requires.
+    assertThat(result.output).containsMatch("CHECKER_JARS=checker-$TEST_CF_VERSION[-.]")
   }
 
   @Test
