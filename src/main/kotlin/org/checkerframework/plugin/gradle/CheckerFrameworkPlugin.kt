@@ -62,14 +62,14 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
     val cfConfiguration =
       project.configurations.register(CONFIGURATION_NAME) {
         description =
-          "Checker Framework dependencies, which are added to all source sets' annotationProcessor configurations"
+          "Checker Framework dependencies, will be extended by all source sets' annotationProcessor configurations"
         addDefaultCFDependencies(cfVersion, project, "checker")
       }
 
     val checkerQualConfiguration =
       project.configurations.register("checkerQual") {
         description =
-          "Pluggable type-checker qualifier dependencies, which are added to all source sets' implementation configurations"
+          "Pluggable type-checker qualifier dependencies, will be extended by all source sets' implementation configuration"
         addDefaultCFDependencies(cfVersion, project, "checker-qual")
       }
 

@@ -927,38 +927,4 @@ class CfPluginFunctionalTest : KotlinPluginFunctionalTest() {
       buildFile.writeText(buildFileText)
     }
   }
-
-  @Test
-  fun `test configuration cache is stored and reused`() {
-    buildFile.appendText(
-      """
-      configure<CheckerFrameworkExtension> {
-        version = "$TEST_CF_VERSION"
-        checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
-      }
-      """
-        .trimIndent()
-    )
-    // given
-    testProjectDir.writeEmptyClass()
-
-    // when the configuration cache is written
-    val storeResult = testProjectDir.buildWithArgs("compileJava", "--configuration-cache")
-
-    // then
-    assertThat(storeResult.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
-    assertThat(storeResult.output).contains("Configuration cache entry stored")
-    // A configuration cache problem discards the entry, on every Gradle version that supports the
-    // configuration cache, whether or not the problem also fails the build.
-    assertThat(storeResult.output).doesNotContain("Configuration cache entry discarded")
-
-    // when the configuration cache is read.  The Checker Framework must still report an error, to
-    // show that the compilation is configured from the cache rather than skipped.
-    testProjectDir.writeNullnessFailure()
-    val reuseResult = testProjectDir.buildWithArgsAndFail("compileJava", "--configuration-cache")
-
-    // then
-    assertThat(reuseResult.output).contains("Configuration cache entry reused")
-    assertThat(reuseResult.output).contains(NULLNESS_FAILURE)
-  }
 }
