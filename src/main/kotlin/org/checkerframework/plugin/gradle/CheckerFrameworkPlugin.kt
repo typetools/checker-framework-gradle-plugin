@@ -97,12 +97,17 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
           .create("checkerFrameworkCompile", CheckerFrameworkCompileExtension::class.java)
 
       // If the user passes -PskipCheckerFramework, then use that value rather than the value from
-      // the configuration.
-      val skipCf =
-        skipCheckerFrameworkProperty(project) ?: cfExtension.skipCheckerFramework.getOrElse(false)
+      // the configuration. The project property is read here, rather than in the task action below,
+      // because reading it requires the Project, which a task action must not use.
+      val skipCfProperty = skipCheckerFrameworkProperty(project)
 
+      // This action runs when the task is realized, which a build script can cause by configuring
+      // the task, so the options do not necessarily have their final values yet. Skipping the
+      // configuration below is therefore only an optimization for a task that the user has already
+      // asked not to be checked; the task action below decides again, when the options are final,
+      // whether to run the Checker Framework.
       if (
-        skipCf ||
+        skipCheckerFramework(skipCfProperty, cfExtension) ||
           !cfCompileOptions.enabled.getOrElse(true) ||
           (cfExtension.excludeTests.getOrElse(false) && isTestName(name))
       ) {
@@ -116,7 +121,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
       options.forkOptions.jvmArgumentProviders.add(CheckerFrameworkJvmArgumentProvider())
       doFirst {
         if (
-          skipCf ||
+          skipCheckerFramework(skipCfProperty, cfExtension) ||
             !cfCompileOptions.enabled.getOrElse(true) ||
             (cfExtension.excludeTests.getOrElse(false) && isTestName(name))
         ) {
@@ -380,6 +385,20 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
    */
   private fun skipCheckerFrameworkProperty(project: Project): Boolean? =
     projectProperty(project, "skipCheckerFramework")?.let { it != "false" }
+
+  /**
+   * Returns true if the Checker Framework should not be run: the value of the
+   * "skipCheckerFramework" project property if it is set, and the value of the
+   * `skipCheckerFramework` configuration option otherwise.
+   *
+   * @param skipCfProperty the value of the "skipCheckerFramework" project property, or null if the
+   *   property is not set
+   * @param cfExtension the configuration that says whether to run the Checker Framework
+   */
+  private fun skipCheckerFramework(
+    skipCfProperty: Boolean?,
+    cfExtension: CheckerFrameworkExtension,
+  ): Boolean = skipCfProperty ?: cfExtension.skipCheckerFramework.getOrElse(false)
 
   /**
    * Add the default dependencies for the given {@code jarName}.

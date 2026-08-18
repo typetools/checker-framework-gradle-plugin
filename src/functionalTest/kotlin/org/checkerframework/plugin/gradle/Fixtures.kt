@@ -157,6 +157,30 @@ fun File.writeLombokExample() {
   }
 }
 
+/** Writes a class that uses lombok and that the Nullness Checker issues no warning about. */
+fun File.writeCorrectLombokExample() {
+  File(this.resolve("src/main/java/lib").apply { mkdirs() }, "Correct.java").apply {
+    createNewFile()
+    writeText(
+      """
+      package lib;
+
+      import lombok.Getter;
+      import org.checkerframework.checker.nullness.qual.Nullable;
+
+      public class Correct {
+        @Getter private @Nullable Integer x;
+
+        void demo() {
+          x = null;
+        }
+      }
+      """
+        .trimIndent()
+    )
+  }
+}
+
 fun File.writeErrorProneExample() {
   File(this.resolve("src/main/java/com/example").apply { mkdirs() }, "Demo.java").apply {
     createNewFile()

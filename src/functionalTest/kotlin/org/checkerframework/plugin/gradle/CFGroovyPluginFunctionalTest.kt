@@ -116,6 +116,66 @@ class CFGroovyPluginFunctionalTest : GroovyPluginFunctionalTest() {
   }
 
   @Test
+  fun `test skipCheckerFramework after compileJava has been configured`() {
+    buildFile.appendText(
+      """
+      // Configuring the task realizes it, which runs the plugin's configuration of the task before
+      // the checkerFramework block below has run.
+      compileJava{}
+      checkerFramework {
+        version = "$TEST_CF_VERSION"
+        checkers = ["org.checkerframework.checker.nullness.NullnessChecker"]
+        skipCheckerFramework = true
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeNullnessFailure()
+
+    // when
+    val result = testProjectDir.buildWithArgs("compileJava")
+
+    // then
+    assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(result.output).doesNotContain(NULLNESS_FAILURE)
+  }
+
+  @Test
+  fun `test lombok when applying the plugin after the project is evaluated`() {
+    buildFile.writeText(
+      """
+      plugins {
+          id("java-library")
+          id("io.freefair.lombok") version "9.2.0"
+          id("org.checkerframework") apply false
+      }
+      repositories {
+          mavenCentral()
+      }
+      gradle.projectsEvaluated {
+        apply plugin: "org.checkerframework"
+        checkerFramework {
+          version = "$TEST_CF_VERSION"
+          checkers = ["org.checkerframework.checker.nullness.NullnessChecker"]
+          extraJavacArgs = ["-Aversion"]
+        }
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeCorrectLombokExample()
+
+    // when
+    val result = testProjectDir.buildWithArgs("build")
+
+    // then
+    assertThat(result.task(":checkDelombokCompileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(result.output).contains("Note: Checker Framework $TEST_CF_VERSION")
+  }
+
+  @Test
   fun `test excludeTests when applying the plugin after the project is evaluated`() {
     buildFile.writeText(
       """
