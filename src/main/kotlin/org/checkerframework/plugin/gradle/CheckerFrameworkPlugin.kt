@@ -2,6 +2,7 @@ package org.checkerframework.plugin.gradle
 
 import java.io.File
 import javax.inject.Inject
+import org.gradle.api.NamedDomainObjectProvider
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.Task
@@ -64,21 +65,18 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
         addDefaultCFDependencies(cfVersion, project, "checker-qual")
       }
 
-    // Add checker.jar to all annotationProcessor configurations and checker-qual.jar to all
-    // compileOnly configurations.
-    // If the user set `excludeTests` to true, then the jars are not added to test configurations.
-    project.plugins.withType<JavaBasePlugin> {
-      project.extensions.getByName<SourceSetContainer>("sourceSets").configureEach {
-        if (!cfExtension.excludeTests.getOrElse(false) || !isTestName(name)) {
-          project.configurations.named(annotationProcessorConfigurationName) {
-            extendsFrom(cfConfiguration.get())
-          }
-          project.configurations.named(implementationConfigurationName) {
-            extendsFrom(checkerQualConfiguration.get())
-          }
-        }
-      }
-    }
+    // Register the actions that add dependencies now, rather than after the build script has run,
+    // because Gradle forbids adding a dependency action to a configuration that has already been
+    // resolved, and a build script may resolve a configuration while it runs. Registering the
+    // action does not fix what it will add: the action reads the extension's options when a
+    // configuration is resolved, by which time the options have their final values.
+    addCFDependenciesToSourceSets(
+      project,
+      cfExtension,
+      cfVersion,
+      cfConfiguration,
+      checkerQualConfiguration,
+    )
 
     val cfManifestDir = project.layout.buildDirectory.dir("checkerframework")
     // A FileCollection, unlike a Project, can be captured by a task action: the configuration cache
@@ -158,6 +156,124 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
       val javaPluginExtension: JavaPluginExtension =
         project.extensions.getByType(JavaPluginExtension::class.java)
       javaPluginExtension.sourceSets.configureEach { addCheckDelombokTask(this, project) }
+    }
+  }
+
+  /**
+   * Adds checker.jar to all annotationProcessor configurations and checker-qual.jar to all
+   * implementation configurations. If the user set `excludeTests` to true, then the jars are not
+   * added to test configurations.
+   */
+  private fun addCFDependenciesToSourceSets(
+    project: Project,
+    cfExtension: CheckerFrameworkExtension,
+    cfVersion: Provider<String>,
+    cfConfiguration: NamedDomainObjectProvider<Configuration>,
+    checkerQualConfiguration: NamedDomainObjectProvider<Configuration>,
+  ) {
+    project.plugins.withType<JavaBasePlugin> {
+      project.extensions.getByName<SourceSetContainer>("sourceSets").configureEach {
+        val annotationProcessorConfiguration =
+          project.configurations.getByName(annotationProcessorConfigurationName)
+        val implementationConfiguration =
+          project.configurations.getByName(implementationConfigurationName)
+        val isTest = isTestName(name)
+        addCFDependencies(
+          annotationProcessorConfiguration,
+          cfConfiguration,
+          cfExtension,
+          cfVersion,
+          project,
+          "checker",
+          isTest,
+        )
+        addCFDependencies(
+          implementationConfiguration,
+          checkerQualConfiguration,
+          cfExtension,
+          cfVersion,
+          project,
+          "checker-qual",
+          isTest,
+        )
+      }
+    }
+  }
+
+  /**
+   * Adds the dependencies of {@code cfConfiguration} to {@code targetConfiguration}. Adds nothing
+   * if {@code targetConfiguration} belongs to a test source set and the user set `excludeTests` to
+   * true.
+   *
+   * The dependencies are copied rather than inherited via [Configuration.extendsFrom], because the
+   * values that determine what to add are not necessarily known when extendsFrom would have to be
+   * called: when this plugin is applied to an already-evaluated project, the user configures the
+   * extension afterwards, and Gradle forbids changing a configuration's hierarchy once the
+   * configuration has been observed. [Configuration.withDependencies] runs when the dependencies
+   * are queried, by which time the extension's options have their final values.
+   *
+   * This must be called while this plugin is being applied, not after the project has been
+   * evaluated, because Gradle forbids calling [Configuration.withDependencies] on a configuration
+   * that has already been resolved, and a build script may resolve a source set's classpath while
+   * the build script runs.
+   *
+   * @param targetConfiguration the configuration of a source set to add the dependencies to
+   * @param cfConfiguration the configuration whose dependencies to copy
+   * @param cfExtension the configuration that says whether to exclude tests
+   * @param cfVersion the Checker Framework version, "local", or "dependencies"
+   * @param project current project
+   * @param jarName name of the jar to depend on if {@code cfConfiguration} declares no dependencies
+   * @param isTest true if {@code targetConfiguration} belongs to a test source set
+   */
+  private fun addCFDependencies(
+    targetConfiguration: Configuration,
+    cfConfiguration: NamedDomainObjectProvider<Configuration>,
+    cfExtension: CheckerFrameworkExtension,
+    cfVersion: Provider<String>,
+    project: Project,
+    jarName: String,
+    isTest: Boolean,
+  ) {
+    val dependencies = project.dependencies
+    val objects = project.objects
+    targetConfiguration.withDependencies {
+      if (isTest && cfExtension.excludeTests.getOrElse(false)) {
+        return@withDependencies
+      }
+      val cfConfigurationValue = cfConfiguration.get()
+      // This replicates what defaultDependencies does for cfConfiguration: the default dependency
+      // is used only if the user declared no dependency on cfConfiguration itself. It cannot simply
+      // be copied from cfConfiguration, because cfConfiguration's defaultDependencies action has
+      // not necessarily run yet; that action runs only when cfConfiguration itself is being
+      // resolved.
+      if (cfConfigurationValue.dependencies.isEmpty()) {
+        defaultCFDependency(cfVersion, dependencies, objects, jarName)?.let { add(it) }
+      }
+      // Add every dependency, constraint, and exclude rule that extendsFrom would have made
+      // targetConfiguration inherit, including those that cfConfiguration itself inherits.
+      // A dependency is copied rather than shared, because a dependency is mutable and belongs to
+      // one configuration: configuring targetConfiguration must not change cfConfiguration.
+      cfConfigurationValue.allDependencies.forEach { add(it.copy()) }
+      // A constraint is shared rather than copied, which is what extendsFrom does as well. A
+      // constraint cannot be copied faithfully: DependencyConstraint has no `copy` method, and
+      // recreating a constraint from its group and name turns a constraint on a project into a
+      // constraint on an external module, which no longer selects the project.
+      cfConfigurationValue.allDependencyConstraints.forEach {
+        targetConfiguration.dependencyConstraints.add(it)
+      }
+      // The exclude rules are read from the whole hierarchy, because Configuration.getExcludeRules
+      // returns only a configuration's own rules, whereas resolution applies the exclude rules of
+      // every configuration in the hierarchy.
+      cfConfigurationValue.hierarchy.forEach { configuration ->
+        configuration.excludeRules.forEach {
+          val excludeRule = HashMap<String, String>()
+          it.group?.let { group -> excludeRule["group"] = group }
+          it.module?.let { module -> excludeRule["module"] = module }
+          if (excludeRule.isNotEmpty()) {
+            targetConfiguration.exclude(excludeRule)
+          }
+        }
+      }
     }
   }
 
