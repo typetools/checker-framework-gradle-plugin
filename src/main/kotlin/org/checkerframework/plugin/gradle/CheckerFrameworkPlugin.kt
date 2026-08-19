@@ -4,6 +4,7 @@ import java.io.File
 import java.util.function.BiFunction
 import javax.inject.Inject
 import org.gradle.api.Action
+import org.gradle.api.InvalidUserCodeException
 import org.gradle.api.NamedDomainObjectProvider
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -359,18 +360,24 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
   }
 
   /**
-   * Runs {@code action} after {@code project} has been evaluated, or immediately if {@code project}
-   * has already been evaluated. Calling [Project.afterEvaluate] on an already-evaluated project is
-   * an error.
+   * Runs {@code action} after {@code project} has been evaluated, or immediately if it is too late
+   * to register such an action, because {@code project} has already been evaluated.
+   *
+   * Registration is attempted rather than predicted from [org.gradle.api.ProjectState.getExecuted],
+   * which becomes true while the project's `afterEvaluate` actions are running, at which time
+   * registering one more action is still permitted and still runs it later than the code that is
+   * registering it. Running the action immediately in that case would read configuration, such as a
+   * compile task's compiler arguments, before another `afterEvaluate` action has set it.
    *
    * @param project the project to configure
    * @param action the configuration to run
    */
   private fun afterEvaluateOrNow(project: Project, action: (Project) -> Unit) {
-    if (project.state.executed) {
-      action(project)
-    } else {
+    try {
       project.afterEvaluate { action(this) }
+    } catch (e: InvalidUserCodeException) {
+      // The project has been evaluated, so the action can run now.
+      action(project)
     }
   }
 
@@ -417,6 +424,20 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
    */
   private fun skipCheckerFrameworkProperty(project: Project): Boolean? =
     projectProperty(project, "skipCheckerFramework")?.let { it != "false" }
+
+  /**
+   * Returns true if the Checker Framework should not be run: the value of the
+   * "skipCheckerFramework" project property if it is set, and the value of the
+   * `skipCheckerFramework` configuration option otherwise.
+   *
+   * @param skipCfProperty the value of the "skipCheckerFramework" project property, or null if the
+   *   property is not set
+   * @param cfExtension the configuration that says whether to run the Checker Framework
+   */
+  private fun skipCheckerFramework(
+    skipCfProperty: Boolean?,
+    cfExtension: CheckerFrameworkExtension,
+  ): Boolean = skipCfProperty ?: cfExtension.skipCheckerFramework.getOrElse(false)
 
   /**
    * Add the default dependencies for the given {@code jarName}.
