@@ -18,6 +18,13 @@ val testGradleVersion =
  */
 val minimumKotlinDslGradleVersion: GradleVersion = GradleVersion.version("8.2.1")
 
+/**
+ * The oldest Gradle version that the `io.freefair.lombok` plugin supports. Applying it to an older
+ * Gradle fails with "Configuration with name 'mainSourceElements' not found", because the
+ * `mainSourceElements` configuration was introduced in Gradle 7.4.
+ */
+val minimumLombokGradleVersion: GradleVersion = GradleVersion.version("7.4")
+
 fun File.writeEmptyClass() {
   File(this.resolve("src/main/java/test").apply { mkdirs() }, "Success.java").apply {
     createNewFile()
@@ -149,6 +156,30 @@ fun File.writeLombokExample() {
               .x(null) // ok
               .y(null) // error
               .build();
+        }
+      }
+      """
+        .trimIndent()
+    )
+  }
+}
+
+/** Writes a class that uses lombok and that the Nullness Checker issues no warning about. */
+fun File.writeCorrectLombokExample() {
+  File(this.resolve("src/main/java/lib").apply { mkdirs() }, "Correct.java").apply {
+    createNewFile()
+    writeText(
+      """
+      package lib;
+
+      import lombok.Getter;
+      import org.checkerframework.checker.nullness.qual.Nullable;
+
+      public class Correct {
+        @Getter private @Nullable Integer x;
+
+        void demo() {
+          x = null;
         }
       }
       """
