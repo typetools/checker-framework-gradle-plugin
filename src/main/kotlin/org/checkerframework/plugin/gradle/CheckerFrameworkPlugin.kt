@@ -440,20 +440,6 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
     projectProperty(project, "skipCheckerFramework")?.let { it != "false" }
 
   /**
-   * Returns true if the Checker Framework should not be run: the value of the
-   * "skipCheckerFramework" project property if it is set, and the value of the
-   * `skipCheckerFramework` configuration option otherwise.
-   *
-   * @param skipCfProperty the value of the "skipCheckerFramework" project property, or null if the
-   *   property is not set
-   * @param cfExtension the configuration that says whether to run the Checker Framework
-   */
-  private fun skipCheckerFramework(
-    skipCfProperty: Boolean?,
-    cfExtension: CheckerFrameworkExtension,
-  ): Boolean = skipCfProperty ?: cfExtension.skipCheckerFramework.getOrElse(false)
-
-  /**
    * Add the default dependencies for the given {@code jarName}.
    *
    * @param cfVersion a provider of the Checker Framework version, "local", or "dependencies"; the
@@ -653,7 +639,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
   internal class CheckerFrameworkJvmArgumentProvider(@get:Input val enabled: Provider<Boolean>) :
     CommandLineArgumentProvider {
     override fun asArguments(): Iterable<String?> {
-      if (!enabled.get()) {
+      if (!enabled.getOrElse(true)) {
         return emptyList()
       }
       return listOf(

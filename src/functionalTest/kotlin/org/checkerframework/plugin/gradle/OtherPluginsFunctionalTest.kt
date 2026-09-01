@@ -155,7 +155,12 @@ class OtherPluginsFunctionalTest : KotlinPluginFunctionalTest() {
     // when
     val result = testProjectDir.buildWithArgsAndFail("build")
 
-    // then the Checker Framework still runs on the delomboked source code
+    // then the Checker Framework does not run on compileJava, as the user asked. The Checker
+    // Framework still runs on the delomboked source code, which a separate checkDelombokCompileJava
+    // task compiles; that task has its own checkerFrameworkCompile.enabled option, which the user
+    // did not set.
+    assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(result.task(":checkDelombokCompileJava")?.outcome).isEqualTo(TaskOutcome.FAILED)
     assertThat(result.output)
       .contains(
         "User.java:9: error: [argument] incompatible argument for parameter y of FooBuilder.y."
