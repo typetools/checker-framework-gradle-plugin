@@ -203,23 +203,28 @@ class ConfigurationCacheFunctionalTest : KotlinPluginFunctionalTest() {
       """
         .trimIndent()
     )
-    // given
-    testProjectDir.writeEmptyClass()
+    // given a program that the Checker Framework rejects, which is when a user is most likely to
+    // pass -PskipCheckerFramework
+    testProjectDir.writeNullnessFailure()
 
     // when
-    val firstResult = testProjectDir.buildWithArgs("compileJava", "--configuration-cache")
+    val firstResult = testProjectDir.buildWithArgsAndFail("compileJava", "--configuration-cache")
 
     // then
+    assertThat(firstResult.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.FAILED)
     assertThat(firstResult.output).contains("Note: Checker Framework $TEST_CF_VERSION")
+    assertThat(firstResult.output).contains(NULLNESS_FAILURE)
+    assertThat(firstResult.output).contains(CONFIGURATION_CACHE_STORED)
 
     // when the property is added, the configuration cache entry must not be reused
-    testProjectDir.resolve("build/classes").deleteRecursively()
     val secondResult =
       testProjectDir.buildWithArgs("compileJava", "--configuration-cache", "-PskipCheckerFramework")
 
     // then
+    assertThat(secondResult.output).doesNotContain(CONFIGURATION_CACHE_REUSED)
     assertThat(secondResult.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
     assertThat(secondResult.output).doesNotContain("Note: Checker Framework $TEST_CF_VERSION")
+    assertThat(secondResult.output).doesNotContain(NULLNESS_FAILURE)
   }
 
   @Test
