@@ -76,7 +76,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
 
     val writeManifestTask =
       project.tasks.register("writeCheckerManifest", WriteCheckerManifestTask::class.java) {
-        group = "Checker Framework tasks"
+        group = "Checker Framework"
         checkers.set(cfExtension.checkers)
         incrementalize.set(cfExtension.incrementalize)
         cfBuildDir.set(project.layout.buildDirectory.dir("checkerframework"))
@@ -348,7 +348,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
       val delombokTask = delombokTaskProvider.get()
       val checkerTask = checkerTaskProvider.get()
       val compileTask = compileTaskProvider.get()
-      checkerTask.group = "Checker Framework tasks"
+      checkerTask.group = "Checker Framework"
       checkerTask.description =
         "Runs the Checker Framework on the result of delomboking the source code"
       // The lombok plugin's default formatting is pretty-printing, without the @Generated
