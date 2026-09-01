@@ -111,7 +111,7 @@ class CFGroovyPluginFunctionalTest : GroovyPluginFunctionalTest() {
       checkerFramework {
         version = "$TEST_CF_VERSION"
         checkers = ["org.checkerframework.checker.nullness.NullnessChecker"]
-        extraJavacArgs = ["-Aversion"]
+        extraJavacArgs = ["-Aversion", "-Afilenames"]
       }
       afterEvaluate {
         compileJava {
@@ -130,7 +130,40 @@ class CFGroovyPluginFunctionalTest : GroovyPluginFunctionalTest() {
 
     // then
     assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.FAILED)
+    // Shows that type-checking ran, given that no error is issued.
+    assertThat(result.output).contains("Note: TaintingChecker is type-checking")
     assertThat(result.output).contains(NULLNESS_FAILURE)
+  }
+
+  @Test
+  fun `test explicit processor added in afterEvaluate, checkers exchanged`() {
+    buildFile.appendText(
+      """
+      checkerFramework {
+        version = "$TEST_CF_VERSION"
+        checkers = ["org.checkerframework.checker.tainting.TaintingChecker"]
+        extraJavacArgs = ["-Aversion", "-Afilenames"]
+      }
+      afterEvaluate {
+        compileJava {
+          options.compilerArgs.add("-processor")
+          options.compilerArgs.add("org.checkerframework.checker.nullness.NullnessChecker")
+        }
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeTaintingFailure()
+
+    // when
+    val result = testProjectDir.buildWithArgsAndFail("compileJava")
+
+    // then, as in `test explicit processor added in afterEvaluate` but with the roles of the two
+    // checkers exchanged, both checkers run.
+    assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.FAILED)
+    assertThat(result.output).contains("Note: NullnessChecker is type-checking")
+    assertThat(result.output).contains(TAINTING_FAILURE_MESSAGE)
   }
 
   @Test
@@ -158,7 +191,44 @@ class CFGroovyPluginFunctionalTest : GroovyPluginFunctionalTest() {
 
     // then
     assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.FAILED)
+    assertThat(result.output).contains("Note: Checker Framework $TEST_CF_VERSION")
     assertThat(result.output).contains(NULLNESS_FAILURE)
+  }
+
+  @Test
+  fun `test annotationProcessorPath replaced in afterEvaluate is retained`() {
+    buildFile.appendText(
+      """
+      checkerFramework {
+        version = "$TEST_CF_VERSION"
+        checkers = ["org.checkerframework.checker.nullness.NullnessChecker"]
+        extraJavacArgs = ["-Aversion"]
+      }
+      afterEvaluate {
+        compileJava {
+          options.annotationProcessorPath = configurations.annotationProcessor
+          doLast {
+            println("annotationProcessorPath = " + options.annotationProcessorPath.files)
+          }
+        }
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgs("compileJava")
+
+    // then this plugin's contribution to the annotation processor path is add-only: the path that
+    // the user set in afterEvaluate is still present, and the manifest directory has been added to
+    // that path.
+    assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    val pathLine = result.output.lines().single { it.startsWith("annotationProcessorPath = ") }
+    val normalizedPathLine = pathLine.replace('\\', '/')
+    assertThat(normalizedPathLine).contains("/checker/$TEST_CF_VERSION/")
+    assertThat(normalizedPathLine).contains("build/checkerframework")
   }
 
   @Test
