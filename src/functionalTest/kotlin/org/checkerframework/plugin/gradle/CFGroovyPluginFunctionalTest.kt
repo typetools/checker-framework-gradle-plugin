@@ -128,12 +128,9 @@ class CFGroovyPluginFunctionalTest : GroovyPluginFunctionalTest() {
     // when
     val result = testProjectDir.buildWithArgsAndFail("compileJava")
 
-    // then both the checker that the user named in the -processor argument and the checker that
-    // this plugin appends to that argument run. The Tainting Checker issues no error about this
-    // source code, so the "-Afilenames" note is what shows that the Tainting Checker ran: javac
-    // runs no further type processor once one type processor has reported an error, so a single
-    // compilation cannot show an error from each of two checkers.
+    // then
     assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.FAILED)
+    // Shows that type-checking ran, given that no error is issued.
     assertThat(result.output).contains("Note: TaintingChecker is type-checking")
     assertThat(result.output).contains(NULLNESS_FAILURE)
   }
@@ -192,9 +189,7 @@ class CFGroovyPluginFunctionalTest : GroovyPluginFunctionalTest() {
     // when
     val result = testProjectDir.buildWithArgsAndFail("compileJava")
 
-    // then replacing the annotation processor path does not prevent the Checker Framework from
-    // running: this plugin adds the manifest directory to whatever path the task has when the task
-    // executes, which is after all configuration, including the user's afterEvaluate block.
+    // then
     assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.FAILED)
     assertThat(result.output).contains("Note: Checker Framework $TEST_CF_VERSION")
     assertThat(result.output).contains(NULLNESS_FAILURE)
