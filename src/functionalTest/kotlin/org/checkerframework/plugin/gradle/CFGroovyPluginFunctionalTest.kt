@@ -226,8 +226,9 @@ class CFGroovyPluginFunctionalTest : GroovyPluginFunctionalTest() {
     // that path.
     assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
     val pathLine = result.output.lines().single { it.startsWith("annotationProcessorPath = ") }
-    assertThat(pathLine).contains("/checker/$TEST_CF_VERSION/")
-    assertThat(pathLine).contains("build/checkerframework")
+    val normalizedPathLine = pathLine.replace('\\', '/')
+    assertThat(normalizedPathLine).contains("/checker/$TEST_CF_VERSION/")
+    assertThat(normalizedPathLine).contains("build/checkerframework")
   }
 
   @Test
