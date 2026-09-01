@@ -2,6 +2,7 @@ package org.checkerframework.plugin.gradle
 
 import java.io.File
 import javax.inject.Inject
+import org.gradle.api.InvalidUserCodeException
 import org.gradle.api.NamedDomainObjectProvider
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -97,29 +98,43 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
           .create("checkerFrameworkCompile", CheckerFrameworkCompileExtension::class.java)
 
       // If the user passes -PskipCheckerFramework, then use that value rather than the value from
-      // the configuration.
-      val skipCf =
-        skipCheckerFrameworkProperty(project) ?: cfExtension.skipCheckerFramework.getOrElse(false)
+      // the configuration. The project property is read here, rather than in the task action below,
+      // because reading it requires the Project, which a task action must not use.
+      val skipCfProperty = skipCheckerFrameworkProperty(project)
 
-      if (
-        skipCf ||
-          !cfCompileOptions.enabled.getOrElse(true) ||
-          (cfExtension.excludeTests.getOrElse(false) && isTestName(name))
-      ) {
+      // A project property cannot change while the build runs, so a task that the property excludes
+      // needs no configuration at all. Every other reason to skip a task can change after this
+      // action has run, so it is decided in the task action below rather than here.
+      if (skipCfProperty == true) {
         return@configureEach
       }
+
+      // Whether to leave this task alone rather than running the Checker Framework on it. This
+      // action runs when the task is realized, which a build script can cause by configuring the
+      // task, so the configuration options do not necessarily have their final values yet; that is
+      // why this is a provider rather than a value.
+      val taskName = name
+      val skipCf: Provider<Boolean> =
+        project.provider {
+          skipCheckerFramework(skipCfProperty, cfExtension) ||
+            !cfCompileOptions.enabled.getOrElse(true) ||
+            (cfExtension.excludeTests.getOrElse(false) && isTestName(taskName))
+        }
+
       dependsOn("writeCheckerManifest")
+
+      // The task action below might do nothing, and nothing else that the task action depends on
+      // is an input to the task. Without this input, a build that runs the Checker Framework
+      // after a build that skipped it would consider the task up to date and would silently not
+      // run the Checker Framework.
+      inputs.property("checkerFramework.skip", skipCf)
 
       // Add argument providers so that a user cannot accidentally overwrite the Checker
       // Framework options, i.e. options.compilerArgs = [...].
       options.compilerArgumentProviders.add(CheckerFrameworkCompilerArgumentProvider(cfExtension))
       options.forkOptions.jvmArgumentProviders.add(CheckerFrameworkJvmArgumentProvider())
       doFirst {
-        if (
-          skipCf ||
-            !cfCompileOptions.enabled.getOrElse(true) ||
-            (cfExtension.excludeTests.getOrElse(false) && isTestName(name))
-        ) {
+        if (skipCf.get()) {
           return@doFirst
         }
         if (cfExtension.checkers.isPresent) {
@@ -295,7 +310,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
     val delombokTaskProvider: TaskProvider<Task> =
       project.tasks.named(sourceSet.getTaskName("delombok", ""), Task::class.java)
 
-    project.afterEvaluate {
+    afterEvaluateOrNow(project) {
       val delombokTask = delombokTaskProvider.get()
       val checkerTask = checkerTaskProvider.get()
       val compileTask = compileTaskProvider.get()
@@ -318,6 +333,28 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
       checkerTask.options.compilerArgs = ArrayList(compileTask.options.compilerArgs)
       checkerTask.options.annotationProcessorPath = compileTask.options.annotationProcessorPath
       project.tasks.named("build").configure { dependsOn(checkerTask) }
+    }
+  }
+
+  /**
+   * Runs {@code action} after {@code project} has been evaluated, or immediately if it is too late
+   * to register such an action, because {@code project} has already been evaluated.
+   *
+   * Registration is attempted rather than predicted from [org.gradle.api.ProjectState.getExecuted],
+   * which becomes true while the project's `afterEvaluate` actions are running, at which time
+   * registering one more action is still permitted and still runs it later than the code that is
+   * registering it. Running the action immediately in that case would read configuration, such as a
+   * compile task's compiler arguments, before another `afterEvaluate` action has set it.
+   *
+   * @param project the project to configure
+   * @param action the configuration to run
+   */
+  private fun afterEvaluateOrNow(project: Project, action: (Project) -> Unit) {
+    try {
+      project.afterEvaluate { action(this) }
+    } catch (e: InvalidUserCodeException) {
+      // The project has been evaluated, so the action can run now.
+      action(project)
     }
   }
 
@@ -364,6 +401,20 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
    */
   private fun skipCheckerFrameworkProperty(project: Project): Boolean? =
     projectProperty(project, "skipCheckerFramework")?.let { it != "false" }
+
+  /**
+   * Returns true if the Checker Framework should not be run: the value of the
+   * "skipCheckerFramework" project property if it is set, and the value of the
+   * `skipCheckerFramework` configuration option otherwise.
+   *
+   * @param skipCfProperty the value of the "skipCheckerFramework" project property, or null if the
+   *   property is not set
+   * @param cfExtension the configuration that says whether to run the Checker Framework
+   */
+  private fun skipCheckerFramework(
+    skipCfProperty: Boolean?,
+    cfExtension: CheckerFrameworkExtension,
+  ): Boolean = skipCfProperty ?: cfExtension.skipCheckerFramework.getOrElse(false)
 
   /**
    * Add the default dependencies for the given {@code jarName}.
