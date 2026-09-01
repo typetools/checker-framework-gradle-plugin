@@ -105,6 +105,29 @@ class CFGroovyPluginFunctionalTest : GroovyPluginFunctionalTest() {
   }
 
   @Test
+  fun `test null extraJavacArgs`() {
+    buildFile.appendText(
+      """
+      checkerFramework {
+        version = "$TEST_CF_VERSION"
+        checkers = ["org.checkerframework.checker.nullness.NullnessChecker"]
+        extraJavacArgs = null
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeNullnessFailure()
+
+    // when
+    val result = testProjectDir.buildWithArgsAndFail("compileJava")
+
+    // then setting extraJavacArgs to null means the same thing as setting it to an empty list.
+    assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.FAILED)
+    assertThat(result.output).contains(NULLNESS_FAILURE)
+  }
+
+  @Test
   fun `test explicit processor added in afterEvaluate`() {
     buildFile.appendText(
       """

@@ -170,6 +170,43 @@ class OtherPluginsFunctionalTest : KotlinPluginFunctionalTest() {
   }
 
   @Test
+  fun `test disabling CF for the delombok task only`() {
+    buildFile.appendText(
+      """
+       plugins {
+          `java-library`
+          id("org.checkerframework")
+          id("io.freefair.lombok").version("9.2.0")
+      }
+
+      configure<CheckerFrameworkExtension> {
+        version = "$TEST_CF_VERSION"
+        checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+        extraJavacArgs = listOf("-Aversion")
+      }
+      tasks.named<JavaCompile>("checkDelombokCompileJava") {
+        val cfOptions =
+          (options as ExtensionAware).extensions.getByName("checkerFrameworkCompile")
+            as CheckerFrameworkCompileExtension
+        cfOptions.enabled.set(false)
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeLombokExample()
+
+    // when
+    val result = testProjectDir.buildWithArgs("checkDelombokCompileJava")
+
+    // then the Checker Framework does not run on the delomboked source code, as the user asked,
+    // even though it runs on compileJava, whose annotation processor path checkDelombokCompileJava
+    // copies.
+    assertThat(result.task(":checkDelombokCompileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(result.output).doesNotContain("error:")
+  }
+
+  @Test
   fun `test errorprone latest`() {
     val majorVersion = Runtime.version().feature()
     if (majorVersion < 21) {
