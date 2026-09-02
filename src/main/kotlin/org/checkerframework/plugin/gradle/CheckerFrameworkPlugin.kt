@@ -21,6 +21,7 @@ import org.gradle.api.plugins.JavaPluginExtension
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.provider.Provider
+import org.gradle.api.specs.Spec
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.PathSensitivity
@@ -132,7 +133,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
       val javaPluginExtension: JavaPluginExtension =
         project.extensions.getByType(JavaPluginExtension::class.java)
       javaPluginExtension.sourceSets.configureEach {
-        addCheckDelombokTask(this, project, cfManifestFiles)
+        addCheckDelombokTask(this, project, cfEnabled)
       }
     }
   }
@@ -346,12 +347,13 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
    *
    * @param sourceSet the source set to add the task for
    * @param project current project
-   * @param cfManifestFiles the Checker Framework manifest directory
+   * @param cfEnabled for each task, the property that says whether to run the Checker Framework on
+   *   it
    */
   private fun addCheckDelombokTask(
     sourceSet: SourceSet,
     project: Project,
-    cfManifestFiles: FileCollection,
+    cfEnabled: Map<String, Property<Boolean>>,
   ) {
 
     val checkerTaskProvider: TaskProvider<JavaCompile> =
@@ -387,15 +389,11 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
         project.layout.buildDirectory.dir(sourceSet.getTaskName("checkerFramework", "Classes"))
       )
       checkerTask.options.compilerArgs = ArrayList(compileTask.options.compilerArgs)
-      // The manifest directory is removed from the copied path, because whether the checker task
-      // runs the Checker Framework is determined by the checker task's own options rather than by
-      // the compile task's; leaving the manifest directory on the path would make javac discover
-      // the checkers even on a checker task for which the user disabled the Checker Framework.
-      // This also discards whatever this plugin put on the checker task's annotation processor
-      // path, but ApplyCheckerFrameworkOptions restores the manifest directory at execution time,
-      // and the manifest directory is a declared input of the task in any case.
-      checkerTask.options.annotationProcessorPath =
-        compileTask.options.annotationProcessorPath?.minus(cfManifestFiles)
+      checkerTask.options.annotationProcessorPath = compileTask.options.annotationProcessorPath
+
+      // Running the Checker Framework is the only purpose of this task, so do not run the task at
+      // all if the Checker Framework is disabled on it.
+      checkerTask.onlyIf(RunOnlyIfCheckerFrameworkEnabled(cfEnabled.getValue(checkerTask.name)))
       project.tasks.named("build").configure { dependsOn(checkerTask) }
     }
   }
@@ -577,6 +575,19 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
   }
 
   /**
+   * Runs a task only if the Checker Framework is enabled on it.
+   *
+   * @param enabled whether to run the Checker Framework on the task; the task does not run if the
+   *   property has no value, which means that this plugin left the task alone
+   */
+  internal class RunOnlyIfCheckerFrameworkEnabled(private val enabled: Provider<Boolean>) :
+    Spec<Task> {
+    override fun isSatisfiedBy(task: Task): Boolean {
+      return enabled.getOrElse(false)
+    }
+  }
+
+  /**
    * The part of the Checker Framework configuration of a [JavaCompile] task that has to run after
    * all other configuration of the task. Because it is a task action, it runs after configuration
    * is complete. It is registered while this plugin is being applied, so it also runs after every
@@ -594,7 +605,6 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
     private val cfManifestFiles: FileCollection,
   ) : Action<Task> {
     override fun execute(task: Task) {
-      val options = (task as JavaCompile).options
       if (!enabled.getOrElse(false)) {
         return
       }
@@ -602,18 +612,17 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
       if (checkerNames.isEmpty()) {
         throw IllegalStateException("Must specify checkers for the Checker Framework.")
       }
+      val options = (task as JavaCompile).options
+      // If the annotationProcessorPath is null, then annotation processing is disabled, so no
+      // checker will run and there is nothing to configure.
+      val annotationProcessorPath = options.annotationProcessorPath ?: return
 
       // Must fork for the JVM arguments to be applied.
       options.isFork = true
 
-      // If the annotationProcessorPath is null, then annotation processing is disabled, so there
-      // is no need to add things to the path. The path already contains the manifest directory
-      // unless some other configuration replaced the path.
-      val annotationProcessorPath = options.annotationProcessorPath
-      if (
-        annotationProcessorPath != null &&
-          !annotationProcessorPath.files.containsAll(cfManifestFiles.files)
-      ) {
+      // The path already contains the manifest directory unless some other configuration replaced
+      // the path.
+      if (!annotationProcessorPath.files.containsAll(cfManifestFiles.files)) {
         options.annotationProcessorPath = annotationProcessorPath.plus(cfManifestFiles)
       }
 

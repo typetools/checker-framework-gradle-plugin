@@ -165,7 +165,7 @@ class CFGroovyPluginFunctionalTest : GroovyPluginFunctionalTest() {
       checkerFramework {
         version = "$TEST_CF_VERSION"
         checkers = ["org.checkerframework.checker.tainting.TaintingChecker"]
-        extraJavacArgs = ["-Aversion", "-Afilenames"]
+        extraJavacArgs = ["-Anomsgtext", "-Afilenames"]
       }
       afterEvaluate {
         compileJava {
@@ -186,7 +186,7 @@ class CFGroovyPluginFunctionalTest : GroovyPluginFunctionalTest() {
     // checkers exchanged, both checkers run.
     assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.FAILED)
     assertThat(result.output).contains("Note: NullnessChecker is type-checking")
-    assertThat(result.output).contains(TAINTING_FAILURE_MESSAGE)
+    assertThat(result.output).contains(TAINTING_FAILURE)
   }
 
   @Test

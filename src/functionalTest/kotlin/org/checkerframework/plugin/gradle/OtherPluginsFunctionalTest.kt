@@ -199,10 +199,9 @@ class OtherPluginsFunctionalTest : KotlinPluginFunctionalTest() {
     // when
     val result = testProjectDir.buildWithArgs("checkDelombokCompileJava")
 
-    // then the Checker Framework does not run on the delomboked source code, as the user asked,
-    // even though it runs on compileJava, whose annotation processor path checkDelombokCompileJava
-    // copies.
-    assertThat(result.task(":checkDelombokCompileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    // then the task does not run at all, as the user asked: running the Checker Framework on the
+    // delomboked source code is its only purpose.
+    assertThat(result.task(":checkDelombokCompileJava")?.outcome).isEqualTo(TaskOutcome.SKIPPED)
     assertThat(result.output).doesNotContain("error:")
   }
 
