@@ -233,6 +233,37 @@ class CfPluginFunctionalTest : KotlinPluginFunctionalTest() {
     assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.FAILED)
   }
 
+  @Test
+  fun `test explicit processor added in a doFirst action`() {
+    buildFile.appendText(
+      """
+      configure<CheckerFrameworkExtension> {
+        version = "$TEST_CF_VERSION"
+        extraJavacArgs = listOf("-Anomsgtext","-Afilenames")
+        checkers = listOf("org.checkerframework.checker.tainting.TaintingChecker")
+      }
+      tasks.named<JavaCompile>("compileJava") {
+        doFirst {
+          options.compilerArgs.add("-processor")
+          options.compilerArgs.add("org.checkerframework.checker.nullness.NullnessChecker")
+        }
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeTaintingFailure()
+
+    // when
+    val result = testProjectDir.buildWithArgsAndFail("compileJava")
+
+    // then the checkers are added to the -processor argument, even though the user added that
+    // argument in a doFirst action rather than while configuring the task.
+    assertThat(result.output).contains("Note: NullnessChecker is type-checking")
+    assertThat(result.output).contains(TAINTING_FAILURE)
+    assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.FAILED)
+  }
+
   @Disabled("This works with Groovy but not Kotlin.")
   @Test
   fun `test disabling CF for some task`() {
