@@ -76,6 +76,7 @@ fun File.writeNullnessFailure() {
   }
 }
 
+/** The Tainting Checker's error, in the "-Anomsgtext" format that omits the message text. */
 const val TAINTING_FAILURE = "Failure2Checkers.java:8: error: (argument)"
 
 fun File.writeTaintingFailure() {
@@ -208,6 +209,9 @@ fun File.writeErrorProneExample() {
     )
   }
 }
+
+const val CONFIGURATION_CACHE_STORED = "Configuration cache entry stored."
+const val CONFIGURATION_CACHE_REUSED = "Configuration cache entry reused."
 
 fun File.buildWithArgs(vararg tasks: String): BuildResult = prepareBuild(*tasks).build()
 

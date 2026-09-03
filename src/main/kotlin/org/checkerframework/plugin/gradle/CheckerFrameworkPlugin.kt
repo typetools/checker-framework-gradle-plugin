@@ -1,25 +1,36 @@
 package org.checkerframework.plugin.gradle
 
 import java.io.File
+import java.util.function.BiFunction
 import javax.inject.Inject
+import org.gradle.api.Action
 import org.gradle.api.InvalidUserCodeException
 import org.gradle.api.NamedDomainObjectProvider
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.Task
+import org.gradle.api.Transformer
 import org.gradle.api.artifacts.Configuration
 import org.gradle.api.artifacts.Dependency
 import org.gradle.api.artifacts.dsl.DependencyHandler
+import org.gradle.api.file.FileCollection
 import org.gradle.api.model.ObjectFactory
 import org.gradle.api.plugins.ExtensionAware
 import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.plugins.JavaPluginExtension
+import org.gradle.api.provider.ListProperty
+import org.gradle.api.provider.Property
 import org.gradle.api.provider.Provider
+import org.gradle.api.specs.Spec
+import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.Optional
+import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.SourceSetContainer
 import org.gradle.api.tasks.TaskProvider
 import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.kotlin.dsl.getByName
+import org.gradle.kotlin.dsl.getByType
 import org.gradle.kotlin.dsl.withType
 import org.gradle.process.CommandLineArgumentProvider
 import org.gradle.util.GradleVersion
@@ -66,6 +77,38 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
         addDefaultCFDependencies(cfVersion, project, "checker-qual")
       }
 
+    val writeManifestTask =
+      project.tasks.register("writeCheckerManifest", WriteCheckerManifestTask::class.java) {
+        group = "Checker Framework"
+        checkers.set(cfExtension.checkers)
+        incrementalize.set(cfExtension.incrementalize)
+        cfBuildDir.set(project.layout.buildDirectory.dir("checkerframework"))
+      }
+
+    // A file collection containing the manifest directory, which carries a dependency on the task
+    // that creates the directory's contents.
+    val cfManifestFiles = project.files(writeManifestTask.flatMap { it.cfBuildDir })
+
+    // Whether to run the Checker Framework on a [JavaCompile] task, by task name.
+    // configureJavaCompileTasks sets each value; a task whose value is never set, because
+    // configureJavaCompileTasks leaves the task alone, is not compiled with the Checker Framework.
+    val cfEnabled = HashMap<String, Property<Boolean>>()
+
+    project.tasks.withType<JavaCompile>().configureEach {
+      (options as ExtensionAware)
+        .extensions
+        .create("checkerFrameworkCompile", CheckerFrameworkCompileExtension::class.java)
+
+      // The task action that does the configuration that has to run after all other configuration
+      // of the task is registered here, while this plugin is being applied, rather than in
+      // configureJavaCompileTasks below. Registering it as early as possible puts it last among the
+      // task's doFirst actions, because doFirst prepends. What it does is decided by the `enabled`
+      // property, whose value configureJavaCompileTasks sets after the build script has run.
+      val enabled = project.objects.property(Boolean::class.java)
+      cfEnabled[name] = enabled
+      doFirst(ApplyCheckerFrameworkOptions(enabled, cfExtension.checkers, cfManifestFiles))
+    }
+
     // Register the actions that add dependencies now, rather than after the build script has run,
     // because Gradle forbids adding a dependency action to a configuration that has already been
     // resolved, and a build script may resolve a configuration while it runs. Registering the
@@ -79,98 +122,19 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
       checkerQualConfiguration,
     )
 
-    val cfManifestDir = project.layout.buildDirectory.dir("checkerframework")
-    // A FileCollection, unlike a Project, can be captured by a task action: the configuration cache
-    // can serialize it.
-    val cfManifestFiles = project.files(cfManifestDir)
-
-    project.tasks.register("writeCheckerManifest", WriteCheckerManifestTask::class.java) {
-      group = "Checker Framework"
-      checkers.set(cfExtension.checkers)
-      incrementalize.set(cfExtension.incrementalize)
-      cfBuildDir.set(cfManifestDir)
-    }
-
-    project.tasks.withType<JavaCompile>().configureEach {
-      val cfCompileOptions =
-        (options as ExtensionAware)
-          .extensions
-          .create("checkerFrameworkCompile", CheckerFrameworkCompileExtension::class.java)
-
-      // If the user passes -PskipCheckerFramework, then use that value rather than the value from
-      // the configuration. The project property is read here, rather than in the task action below,
-      // because reading it requires the Project, which a task action must not use.
-      val skipCfProperty = skipCheckerFrameworkProperty(project)
-
-      // A project property cannot change while the build runs, so a task that the property excludes
-      // needs no configuration at all. Every other reason to skip a task can change after this
-      // action has run, so it is decided in the task action below rather than here.
-      if (skipCfProperty == true) {
-        return@configureEach
-      }
-
-      // Whether to leave this task alone rather than running the Checker Framework on it. This
-      // action runs when the task is realized, which a build script can cause by configuring the
-      // task, so the configuration options do not necessarily have their final values yet; that is
-      // why this is a provider rather than a value.
-      val taskName = name
-      val skipCf: Provider<Boolean> =
-        project.provider {
-          skipCheckerFramework(skipCfProperty, cfExtension) ||
-            !cfCompileOptions.enabled.getOrElse(true) ||
-            (cfExtension.excludeTests.getOrElse(false) && isTestName(taskName))
-        }
-
-      dependsOn("writeCheckerManifest")
-
-      // The task action below might do nothing, and nothing else that the task action depends on
-      // is an input to the task. Without this input, a build that runs the Checker Framework
-      // after a build that skipped it would consider the task up to date and would silently not
-      // run the Checker Framework.
-      inputs.property("checkerFramework.skip", skipCf)
-
-      // Add argument providers so that a user cannot accidentally overwrite the Checker
-      // Framework options, i.e. options.compilerArgs = [...].
-      options.compilerArgumentProviders.add(CheckerFrameworkCompilerArgumentProvider(cfExtension))
-      options.forkOptions.jvmArgumentProviders.add(CheckerFrameworkJvmArgumentProvider())
-      doFirst {
-        if (skipCf.get()) {
-          return@doFirst
-        }
-        if (cfExtension.checkers.isPresent) {
-          val checkers = cfExtension.checkers.get()
-          if (checkers.isEmpty()) {
-            throw IllegalStateException("Must specify checkers for the Checker Framework.")
-          }
-          // If the annotationProcessorPath is null, then annotation processing is disabled, so no
-          // need to add things to the path.
-          options.annotationProcessorPath = options.annotationProcessorPath?.plus(cfManifestFiles)
-
-          val processorArgIndex = options.compilerArgs.indexOf("-processor")
-          if (processorArgIndex != -1 && processorArgIndex + 1 < options.compilerArgs.size) {
-            // Because the user already passed -processor as a compiler arg, auto discovery will
-            // not work, so add the checkers to the list of processors.
-            // This can't be done in CheckerFrameworkCompilerArgumentProvider because it modifies
-            // existing arguments rather than adding a new one.
-            val oldProcessors = options.compilerArgs[processorArgIndex + 1]
-            val cfProcessors = checkers.joinToString(separator = ",")
-            options.compilerArgs[processorArgIndex + 1] = "$oldProcessors,$cfProcessors"
-          } else if (processorArgIndex != -1) {
-            logger.warn("Found -processor argument without a value; no checkers will be used.")
-          }
-          // Must fork for the JVM arguments to be applied.
-          options.isFork = true
-        } else {
-          throw IllegalStateException("Must specify checkers for the Checker Framework.")
-        }
-      }
+    // Configure after the build script has run, so that the values of the extensions and of the
+    // project properties are the ones the user requested, no matter when a task is realized.
+    afterEvaluateOrNow(project) {
+      configureJavaCompileTasks(project, cfExtension, cfManifestFiles, cfEnabled)
     }
 
     // Handle Lombok
     project.pluginManager.withPlugin("io.freefair.lombok") {
       val javaPluginExtension: JavaPluginExtension =
         project.extensions.getByType(JavaPluginExtension::class.java)
-      javaPluginExtension.sourceSets.configureEach { addCheckDelombokTask(this, project) }
+      javaPluginExtension.sourceSets.configureEach {
+        addCheckDelombokTask(this, project, cfEnabled)
+      }
     }
   }
 
@@ -293,10 +257,104 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
   }
 
   /**
+   * Configures every [JavaCompile] task on which the Checker Framework should be run.
+   *
+   * @param project current project
+   * @param cfExtension the plugin's configuration options
+   * @param cfManifestFiles the Checker Framework manifest directory
+   * @param cfEnabled for each task, the property that says whether to run the Checker Framework on
+   *   it, which this method sets
+   */
+  private fun configureJavaCompileTasks(
+    project: Project,
+    cfExtension: CheckerFrameworkExtension,
+    cfManifestFiles: FileCollection,
+    cfEnabled: Map<String, Property<Boolean>>,
+  ) {
+    project.tasks.withType<JavaCompile>().configureEach {
+      // The "skipCheckerFramework" project property is read here, rather than once outside this
+      // block, so that its value is the one the user requested even when this plugin is applied
+      // after the build script has run and this method therefore runs before the user sets the
+      // property. Unlike the extension's options, a project property cannot change after the task
+      // has been configured, so it is safe to do nothing at all when it says to skip.
+      val skipCfProperty = skipCheckerFrameworkProperty(project)
+      if (skipCfProperty == true) {
+        return@configureEach
+      }
+
+      val cfCompileOptions =
+        (options as ExtensionAware).extensions.getByType<CheckerFrameworkCompileExtension>()
+
+      // Whether to run the Checker Framework on this task. Every option that this depends on can be
+      // set after this plugin has configured the task, so every effect of this plugin either is
+      // undone by ApplyCheckerFrameworkOptions or is computed lazily from this provider.
+      val enabled: Provider<Boolean> =
+        cfCompileOptions.enabled
+          .orElse(true)
+          .map(
+            RunCheckerFramework(
+              skipCfProperty,
+              cfExtension.skipCheckerFramework,
+              cfExtension.excludeTests,
+              isTestName(name),
+            )
+          )
+
+      // Add argument providers so that a user cannot accidentally overwrite the Checker
+      // Framework options, i.e. options.compilerArgs = [...].
+      // The provider's input is the arguments that this task will actually use, rather than
+      // `extraJavacArgs` itself, so that changing `extraJavacArgs` does not make a task on which
+      // the Checker Framework is disabled out of date.
+      options.compilerArgumentProviders.add(
+        CheckerFrameworkCompilerArgumentProvider(
+          cfExtension.extraJavacArgs.zip(enabled, ExtraJavacArgsIfEnabled())
+        )
+      )
+      options.forkOptions.jvmArgumentProviders.add(CheckerFrameworkJvmArgumentProvider(enabled))
+
+      // The manifest directory, or no files if the Checker Framework is disabled. The manifest
+      // directory carries a dependency on the task that writes it, so that task runs only if some
+      // compilation uses the Checker Framework.
+      val manifestFilesIfEnabled =
+        project.files(enabled.map(ManifestFilesIfEnabled(cfManifestFiles)))
+
+      // Declare the manifest directory as an input of the task, in addition to putting it on the
+      // annotation processor path below. Other configuration may replace the annotation processor
+      // path, in which case ApplyCheckerFrameworkOptions puts the manifest directory back, but too
+      // late for Gradle to treat it as an input.
+      inputs
+        .files(manifestFilesIfEnabled)
+        .withPropertyName("checkerFrameworkManifest")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+
+      // Put the manifest directory on the annotation processor path here, rather than only in
+      // ApplyCheckerFrameworkOptions, so that the Checker Framework is found even if that action's
+      // changes to the path come too late.
+      // If the annotationProcessorPath is null, then annotation processing is disabled, so there
+      // is no need to add things to the path.
+      options.annotationProcessorPath =
+        options.annotationProcessorPath?.plus(manifestFilesIfEnabled)
+
+      // The rest of the configuration is done by the task action that was registered while this
+      // plugin was being applied; enabling it here is what makes that action do anything.
+      cfEnabled.getValue(name).set(enabled)
+    }
+  }
+
+  /**
    * Adds a checkDelombokCompileJava task, for the given source set, that copies the compileJava
    * task, but changes the source to the result of the delombok task.
+   *
+   * @param sourceSet the source set to add the task for
+   * @param project current project
+   * @param cfEnabled for each task, the property that says whether to run the Checker Framework on
+   *   it
    */
-  private fun addCheckDelombokTask(sourceSet: SourceSet, project: Project) {
+  private fun addCheckDelombokTask(
+    sourceSet: SourceSet,
+    project: Project,
+    cfEnabled: Map<String, Property<Boolean>>,
+  ) {
 
     val checkerTaskProvider: TaskProvider<JavaCompile> =
       project.tasks.register(
@@ -332,6 +390,10 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
       )
       checkerTask.options.compilerArgs = ArrayList(compileTask.options.compilerArgs)
       checkerTask.options.annotationProcessorPath = compileTask.options.annotationProcessorPath
+
+      // Running the Checker Framework is the only purpose of this task, so do not run the task at
+      // all if the Checker Framework is disabled on it.
+      checkerTask.onlyIf(RunOnlyIfCheckerFrameworkEnabled(cfEnabled.getValue(checkerTask.name)))
       project.tasks.named("build").configure { dependsOn(checkerTask) }
     }
   }
@@ -403,20 +465,6 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
     projectProperty(project, "skipCheckerFramework")?.let { it != "false" }
 
   /**
-   * Returns true if the Checker Framework should not be run: the value of the
-   * "skipCheckerFramework" project property if it is set, and the value of the
-   * `skipCheckerFramework` configuration option otherwise.
-   *
-   * @param skipCfProperty the value of the "skipCheckerFramework" project property, or null if the
-   *   property is not set
-   * @param cfExtension the configuration that says whether to run the Checker Framework
-   */
-  private fun skipCheckerFramework(
-    skipCfProperty: Boolean?,
-    cfExtension: CheckerFrameworkExtension,
-  ): Boolean = skipCfProperty ?: cfExtension.skipCheckerFramework.getOrElse(false)
-
-  /**
    * Add the default dependencies for the given {@code jarName}.
    *
    * @param cfVersion a provider of the Checker Framework version, "local", or "dependencies"; the
@@ -484,18 +532,145 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
     return taskName.matches(Regex(".*(T|(^|[A-Z_])t)est.*"))
   }
 
-  /** Provides extraJavacArgs to the compiler. */
-  internal class CheckerFrameworkCompilerArgumentProvider(
-    private val cfOptions: CheckerFrameworkExtension
-  ) : CommandLineArgumentProvider {
-    override fun asArguments(): Iterable<String?> {
-      return cfOptions.extraJavacArgs.getOrElse(emptyList())
+  /**
+   * Returns true if the Checker Framework should be run on a [JavaCompile] task whose
+   * `checkerFrameworkCompile.enabled` option has the given value.
+   *
+   * The extension's options are read when this runs, rather than when the task was configured, so
+   * that their values are the ones the user requested even if the user sets them after this plugin
+   * has configured the task.
+   *
+   * @param skipCfProperty the value of the "skipCheckerFramework" project property, or null if the
+   *   property is not set
+   * @param skipCheckerFramework the `skipCheckerFramework` configuration option
+   * @param excludeTests the `excludeTests` configuration option
+   * @param isTestTask true if the task compiles a test source set
+   */
+  internal class RunCheckerFramework(
+    private val skipCfProperty: Boolean?,
+    private val skipCheckerFramework: Provider<Boolean>,
+    private val excludeTests: Provider<Boolean>,
+    private val isTestTask: Boolean,
+  ) : Transformer<Boolean, Boolean> {
+    override fun transform(enabled: Boolean): Boolean {
+      if (!enabled) {
+        return false
+      }
+      if (skipCfProperty ?: skipCheckerFramework.getOrElse(false)) {
+        return false
+      }
+      return !(isTestTask && excludeTests.getOrElse(false))
     }
   }
 
-  /** Provides JVM arguments. */
-  internal class CheckerFrameworkJvmArgumentProvider : CommandLineArgumentProvider {
+  /**
+   * Returns the Checker Framework manifest files if the Checker Framework is enabled, and no files
+   * otherwise.
+   */
+  internal class ManifestFilesIfEnabled(private val cfManifestFiles: FileCollection) :
+    Transformer<Any, Boolean> {
+    override fun transform(enabled: Boolean): Any {
+      return if (enabled) cfManifestFiles else emptyList<Any>()
+    }
+  }
+
+  /**
+   * Runs a task only if the Checker Framework is enabled on it.
+   *
+   * @param enabled whether to run the Checker Framework on the task; the task does not run if the
+   *   property has no value, which means that this plugin left the task alone
+   */
+  internal class RunOnlyIfCheckerFrameworkEnabled(private val enabled: Provider<Boolean>) :
+    Spec<Task> {
+    override fun isSatisfiedBy(task: Task): Boolean {
+      return enabled.getOrElse(false)
+    }
+  }
+
+  /**
+   * The part of the Checker Framework configuration of a [JavaCompile] task that has to run after
+   * all other configuration of the task. Because it is a task action, it runs after configuration
+   * is complete. It is registered while this plugin is being applied, so it also runs after every
+   * `doFirst` action that a build script or another plugin registers later, and therefore has the
+   * last word about the options that it sets.
+   *
+   * @param enabled whether to run the Checker Framework on the task; this action does nothing if
+   *   the property has no value, which means that this plugin left the task alone
+   * @param checkers the checkers to run
+   * @param cfManifestFiles the Checker Framework manifest directory
+   */
+  internal class ApplyCheckerFrameworkOptions(
+    private val enabled: Provider<Boolean>,
+    private val checkers: ListProperty<String>,
+    private val cfManifestFiles: FileCollection,
+  ) : Action<Task> {
+    override fun execute(task: Task) {
+      if (!enabled.getOrElse(false)) {
+        return
+      }
+      val checkerNames = checkers.getOrElse(emptyList())
+      if (checkerNames.isEmpty()) {
+        throw IllegalStateException("Must specify checkers for the Checker Framework.")
+      }
+      val options = (task as JavaCompile).options
+      // If the annotationProcessorPath is null, then annotation processing is disabled, so no
+      // checker will run and there is nothing to configure.
+      val annotationProcessorPath = options.annotationProcessorPath ?: return
+
+      // Must fork for the JVM arguments to be applied.
+      options.isFork = true
+
+      // The path already contains the manifest directory unless some other configuration replaced
+      // the path.
+      if (!annotationProcessorPath.files.containsAll(cfManifestFiles.files)) {
+        options.annotationProcessorPath = annotationProcessorPath.plus(cfManifestFiles)
+      }
+
+      val compilerArgs = ArrayList(options.compilerArgs)
+      val processorArgIndex = compilerArgs.indexOf("-processor")
+      if (processorArgIndex != -1) {
+        if (processorArgIndex + 1 < compilerArgs.size) {
+          // Because the user already passed -processor as a compiler arg, auto discovery will
+          // not work, so add the checkers to the list of processors.
+          // This can't be done in CheckerFrameworkCompilerArgumentProvider because it modifies
+          // existing arguments rather than adding a new one.
+          val oldProcessors = compilerArgs[processorArgIndex + 1]
+          val cfProcessors = checkerNames.joinToString(separator = ",")
+          compilerArgs[processorArgIndex + 1] = "$oldProcessors,$cfProcessors"
+          options.compilerArgs = compilerArgs
+        } else {
+          task.logger.warn("Found -processor argument without a value; no checkers will be used.")
+        }
+      }
+    }
+  }
+
+  /**
+   * Returns the extra javac arguments if the Checker Framework is enabled, and no arguments
+   * otherwise.
+   */
+  internal class ExtraJavacArgsIfEnabled : BiFunction<List<String>, Boolean, List<String>> {
+    override fun apply(extraJavacArgs: List<String>, enabled: Boolean): List<String> {
+      return if (enabled) extraJavacArgs else emptyList()
+    }
+  }
+
+  /** Provides extraJavacArgs to the compiler, if the Checker Framework is enabled. */
+  internal class CheckerFrameworkCompilerArgumentProvider(
+    @get:Input @get:Optional val extraJavacArgs: Provider<List<String>>
+  ) : CommandLineArgumentProvider {
     override fun asArguments(): Iterable<String?> {
+      return extraJavacArgs.getOrElse(emptyList())
+    }
+  }
+
+  /** Provides JVM arguments, if the Checker Framework is enabled. */
+  internal class CheckerFrameworkJvmArgumentProvider(@get:Input val enabled: Provider<Boolean>) :
+    CommandLineArgumentProvider {
+    override fun asArguments(): Iterable<String?> {
+      if (!enabled.getOrElse(true)) {
+        return emptyList()
+      }
       return listOf(
         "--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED",
         "--add-exports=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED",
