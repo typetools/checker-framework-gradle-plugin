@@ -94,6 +94,11 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
     // configureJavaCompileTasks leaves the task alone, is not compiled with the Checker Framework.
     val cfEnabled = HashMap<String, Property<Boolean>>()
 
+    // Whether this plugin requested forking for a [JavaCompile] task, by task name.
+    // configureJavaCompileTasks sets each value; a task whose value is never set, because
+    // configureJavaCompileTasks leaves the task alone, was not made to fork by this plugin.
+    val cfRequestedFork = HashMap<String, Property<Boolean>>()
+
     project.tasks.withType<JavaCompile>().configureEach {
       (options as ExtensionAware)
         .extensions
@@ -106,7 +111,11 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
       // property, whose value configureJavaCompileTasks sets after the build script has run.
       val enabled = project.objects.property(Boolean::class.java)
       cfEnabled[name] = enabled
-      doFirst(ApplyCheckerFrameworkOptions(enabled, cfExtension.checkers, cfManifestFiles))
+      val requestedFork = project.objects.property(Boolean::class.java)
+      cfRequestedFork[name] = requestedFork
+      doFirst(
+        ApplyCheckerFrameworkOptions(enabled, cfExtension.checkers, cfManifestFiles, requestedFork)
+      )
     }
 
     // Register the actions that add dependencies now, rather than after the build script has run,
@@ -125,7 +134,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
     // Configure after the build script has run, so that the values of the extensions and of the
     // project properties are the ones the user requested, no matter when a task is realized.
     afterEvaluateOrNow(project) {
-      configureJavaCompileTasks(project, cfExtension, cfManifestFiles, cfEnabled)
+      configureJavaCompileTasks(project, cfExtension, cfManifestFiles, cfEnabled, cfRequestedFork)
     }
 
     // Handle Lombok
@@ -264,12 +273,15 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
    * @param cfManifestFiles the Checker Framework manifest directory
    * @param cfEnabled for each task, the property that says whether to run the Checker Framework on
    *   it, which this method sets
+   * @param cfRequestedFork for each task, the property that says whether this plugin made the task
+   *   fork, which this method sets
    */
   private fun configureJavaCompileTasks(
     project: Project,
     cfExtension: CheckerFrameworkExtension,
     cfManifestFiles: FileCollection,
     cfEnabled: Map<String, Property<Boolean>>,
+    cfRequestedFork: Map<String, Property<Boolean>>,
   ) {
     project.tasks.withType<JavaCompile>().configureEach {
       // The "skipCheckerFramework" project property is read here, rather than once outside this
@@ -320,6 +332,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
       // that a compilation that the user enables later forks after all; and it undoes this request
       // if the user disables the Checker Framework after this configuration has run.
       val requestedFork = enabled.get() && !options.isFork
+      cfRequestedFork.getValue(name).set(requestedFork)
       if (requestedFork) {
         options.isFork = true
       }
@@ -610,22 +623,23 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
    *   the property has no value, which means that this plugin left the task alone
    * @param checkers the checkers to run
    * @param cfManifestFiles the Checker Framework manifest directory
+   * @param requestedFork whether this plugin made the task fork
    */
   internal class ApplyCheckerFrameworkOptions(
     private val enabled: Provider<Boolean>,
     private val checkers: ListProperty<String>,
     private val cfManifestFiles: FileCollection,
-    private val requestedFork: Boolean,
+    private val requestedFork: Provider<Boolean>,
   ) : Action<Task> {
     override fun execute(task: Task) {
       val options = (task as JavaCompile).options
-      if (!enabled.getOrElse(true)) {
+      if (!enabled.getOrElse(false)) {
         // Undo the forking that configuration time requested when the Checker Framework was still
         // enabled, so that this compilation does not fork needlessly. Forking that this plugin did
         // not request is left alone; a request that the user makes after this plugin's cannot be
         // distinguished from this plugin's, and is undone as well. The undoing is logged because
         // it discards a fork that the user may have asked for, along with its fork options.
-        if (requestedFork) {
+        if (requestedFork.getOrElse(false)) {
           task.logger.info(
             "The Checker Framework is disabled for ${task.path}, so ${task.path} will not fork."
           )
@@ -637,7 +651,6 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
       if (checkerNames.isEmpty()) {
         throw IllegalStateException("Must specify checkers for the Checker Framework.")
       }
-      val options = (task as JavaCompile).options
       // If the annotationProcessorPath is null, then annotation processing is disabled, so no
       // checker will run and there is nothing to configure.
       val annotationProcessorPath = options.annotationProcessorPath ?: return
