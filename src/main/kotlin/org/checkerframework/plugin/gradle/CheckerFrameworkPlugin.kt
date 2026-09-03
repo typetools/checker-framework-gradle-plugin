@@ -326,12 +326,15 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
 
       // Must fork for the JVM arguments to be applied. Forking is requested here, at configuration
       // time, because `isFork` is a task input and because other configuration may read it. It is
-      // requested only if the Checker Framework is enabled as of now, so that a compilation that
-      // does not run the Checker Framework does not fork needlessly. ApplyCheckerFrameworkOptions
-      // requests forking again at execution time, so that no other configuration can undo it and so
-      // that a compilation that the user enables later forks after all; and it undoes this request
-      // if the user disables the Checker Framework after this configuration has run.
-      val requestedFork = enabled.get() && !options.isFork
+      // requested only if the Checker Framework is enabled as of now and annotation processing is
+      // configured, so that a compilation that does not run the Checker Framework does not fork
+      // needlessly. A null annotationProcessorPath means that annotation processing is disabled, so
+      // no checker will run. ApplyCheckerFrameworkOptions requests forking again at execution time,
+      // so that no other configuration can undo it and so that a compilation that the user enables
+      // later forks after all; and it undoes this request if the user disables the Checker
+      // Framework after this configuration has run.
+      val requestedFork =
+        enabled.get() && !options.isFork && options.annotationProcessorPath != null
       cfRequestedFork.getValue(name).set(requestedFork)
       if (requestedFork) {
         options.isFork = true
