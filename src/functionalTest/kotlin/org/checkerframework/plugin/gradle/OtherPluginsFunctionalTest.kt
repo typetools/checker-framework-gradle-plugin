@@ -92,6 +92,38 @@ class OtherPluginsFunctionalTest : KotlinPluginFunctionalTest() {
   }
 
   @Test
+  fun `test forking is visible at configuration time with lombok`() {
+    buildFile.appendText(
+      """
+       plugins {
+          `java-library`
+          id("org.checkerframework")
+          id("io.freefair.lombok").version("9.2.0")
+      }
+
+      configure<CheckerFrameworkExtension> {
+        version = "$TEST_CF_VERSION"
+        checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+      }
+      gradle.taskGraph.whenReady {
+        val checkerTask = tasks.named<JavaCompile>("checkDelombokCompileJava").get()
+        println("CHECK_DELOMBOK_FORK=" + checkerTask.options.isFork)
+      }
+      """
+        .trimIndent()
+    )
+
+    // when
+    val result = testProjectDir.buildWithArgs("help")
+
+    // then
+    // The checkDelombokCompileJava task's annotationProcessorPath is copied from the compileJava
+    // task after this plugin has configured the task, so requesting the fork while configuring
+    // every JavaCompile task is not enough for this task.
+    assertThat(result.output).contains("CHECK_DELOMBOK_FORK=true")
+  }
+
+  @Test
   fun `test disabling CF with lombok `() {
     buildFile.appendText(
       """

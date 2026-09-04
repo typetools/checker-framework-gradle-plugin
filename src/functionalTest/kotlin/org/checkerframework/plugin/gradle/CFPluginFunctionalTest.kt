@@ -967,4 +967,47 @@ class CfPluginFunctionalTest : KotlinPluginFunctionalTest() {
       buildFile.writeText(buildFileText)
     }
   }
+
+  /**
+   * A task whose annotationProcessorPath is null does no annotation processing, so no checker runs
+   * on it and it must not fork. The build script applies this plugin after setting the path to
+   * null, so that the path is already null when this plugin configures the task.
+   */
+  @Test
+  fun `test no forking when annotation processing is disabled`() {
+    buildFile.writeText(
+      """
+      import org.checkerframework.plugin.gradle.*
+
+      plugins {
+          `java-library`
+          id("org.checkerframework") apply false
+      }
+      repositories {
+          mavenCentral()
+      }
+      tasks.withType<JavaCompile>().configureEach {
+          options.annotationProcessorPath = null
+      }
+      apply(plugin = "org.checkerframework")
+      configure<CheckerFrameworkExtension> {
+        version = "$TEST_CF_VERSION"
+        checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+      }
+      tasks.named<JavaCompile>("compileJava") {
+        doLast { logger.lifecycle("compileJava isFork = " + options.isFork) }
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgs("compileJava")
+
+    // then
+    assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(result.output).contains("compileJava isFork = false")
+  }
 }
