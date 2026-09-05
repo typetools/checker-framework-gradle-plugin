@@ -689,6 +689,134 @@ class CFGroovyPluginFunctionalTest : GroovyPluginFunctionalTest() {
   }
 
   @Test
+  fun `test forking is visible at configuration time`() {
+    buildFile.appendText(
+      """
+      checkerFramework {
+        version = "$TEST_CF_VERSION"
+        checkers = ["org.checkerframework.checker.nullness.NullnessChecker"]
+      }
+      tasks.register("printFork") {
+        def fork = tasks.compileJava.options.fork
+        doLast {
+          println "COMPILE_JAVA_FORK=" + fork
+        }
+      }
+      """
+        .trimIndent()
+    )
+
+    // when
+    val result = testProjectDir.buildWithArgs("printFork")
+
+    // then
+    // ApplyCheckerFrameworkOptions also sets `fork`, at execution time, so that no other
+    // configuration can undo it. But `fork` is a task input and other configuration may read it,
+    // so it must be set at configuration time as well.
+    assertThat(result.output).contains("COMPILE_JAVA_FORK=true")
+  }
+
+  @Test
+  fun `test forking is undone if the Checker Framework is disabled after configuration`() {
+    buildFile.appendText(
+      """
+      checkerFramework {
+        version = "$TEST_CF_VERSION"
+        checkers = ["org.checkerframework.checker.nullness.NullnessChecker"]
+      }
+      gradle.taskGraph.whenReady {
+        tasks.compileJava.options.checkerFrameworkCompile.enabled = false
+      }
+      tasks.compileJava.doLast {
+        println "COMPILE_JAVA_FORK=" + options.fork
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgs("compileJava", "--info")
+
+    // then
+    // Forking was requested at configuration time, while the Checker Framework was still enabled.
+    // Because this compilation does not run the Checker Framework after all, it does not fork.
+    assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(result.output).contains("COMPILE_JAVA_FORK=false")
+    // The discarded fork is this plugin's own, so discarding it is logged at the info level.
+    assertThat(result.output)
+      .contains("Not forking :compileJava because the Checker Framework will not run")
+  }
+
+  @Test
+  fun `test forking is not undone if fork options are set after configuration`() {
+    buildFile.appendText(
+      """
+      checkerFramework {
+        version = "$TEST_CF_VERSION"
+        checkers = ["org.checkerframework.checker.nullness.NullnessChecker"]
+      }
+      gradle.taskGraph.whenReady {
+        tasks.compileJava.options.checkerFrameworkCompile.enabled = false
+        tasks.compileJava.options.fork = true
+        tasks.compileJava.options.forkOptions.memoryMaximumSize = "1g"
+      }
+      tasks.compileJava.doLast {
+        println "COMPILE_JAVA_FORK=" + options.fork
+        println "COMPILE_JAVA_MEMORY=" + options.forkOptions.memoryMaximumSize
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgs("compileJava")
+
+    // then
+    // The fork options were set after this plugin requested the fork, so the fork is one that the
+    // build script wants, even though the Checker Framework does not run on this compilation.
+    assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(result.output).contains("COMPILE_JAVA_FORK=true")
+    assertThat(result.output).contains("COMPILE_JAVA_MEMORY=1g")
+    assertThat(result.output).doesNotContain("Not forking :compileJava")
+  }
+
+  @Test
+  fun `test forking is undone if annotation processing is disabled after configuration`() {
+    buildFile.appendText(
+      """
+      checkerFramework {
+        version = "$TEST_CF_VERSION"
+        checkers = ["org.checkerframework.checker.nullness.NullnessChecker"]
+      }
+      gradle.taskGraph.whenReady {
+        tasks.compileJava.options.annotationProcessorPath = null
+      }
+      tasks.compileJava.doLast {
+        println "COMPILE_JAVA_FORK=" + options.fork
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgs("compileJava", "--info")
+
+    // then
+    // A null annotationProcessorPath means that annotation processing is disabled, so no checker
+    // runs, so the fork that configuration time requested is undone.
+    assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(result.output).contains("COMPILE_JAVA_FORK=false")
+    assertThat(result.output)
+      .contains("Not forking :compileJava because the Checker Framework will not run")
+  }
+
+  @Test
   fun `test excludeTestsTrue`() {
     buildFile.appendText(
       """
