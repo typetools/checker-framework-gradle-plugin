@@ -124,6 +124,48 @@ class OtherPluginsFunctionalTest : KotlinPluginFunctionalTest() {
   }
 
   @Test
+  fun `test forking is undone with lombok when annotation processing is disabled`() {
+    buildFile.appendText(
+      """
+       plugins {
+          `java-library`
+          id("org.checkerframework")
+          id("io.freefair.lombok").version("9.2.0")
+      }
+
+      configure<CheckerFrameworkExtension> {
+        version = "$TEST_CF_VERSION"
+        checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+      }
+      tasks.withType<JavaCompile>().configureEach {
+        options.annotationProcessorPath = configurations.getByName("annotationProcessor")
+      }
+      gradle.taskGraph.whenReady {
+        tasks.named<JavaCompile>("checkDelombokCompileJava").get().options.annotationProcessorPath =
+          null
+      }
+      tasks.named<JavaCompile>("checkDelombokCompileJava") {
+        doLast { logger.lifecycle("CHECK_DELOMBOK_FORK=" + options.isFork) }
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeCorrectLombokExample()
+
+    // when
+    val result = testProjectDir.buildWithArgs("checkDelombokCompileJava")
+
+    // then
+    // The build script's own configureEach gives the checkDelombokCompileJava task an
+    // annotationProcessorPath before this plugin copies one onto it, so this plugin requests the
+    // fork the first of the two times that it tries to. That request must still be recorded when
+    // the task turns out not to run the Checker Framework, so that the fork is undone.
+    assertThat(result.task(":checkDelombokCompileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(result.output).contains("CHECK_DELOMBOK_FORK=false")
+  }
+
+  @Test
   fun `test disabling CF with lombok `() {
     buildFile.appendText(
       """

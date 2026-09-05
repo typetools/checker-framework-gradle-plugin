@@ -737,16 +737,51 @@ class CFGroovyPluginFunctionalTest : GroovyPluginFunctionalTest() {
     testProjectDir.writeEmptyClass()
 
     // when
-    val result = testProjectDir.buildWithArgs("compileJava")
+    val result = testProjectDir.buildWithArgs("compileJava", "--info")
 
     // then
     // Forking was requested at configuration time, while the Checker Framework was still enabled.
     // Because this compilation does not run the Checker Framework after all, it does not fork.
     assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
     assertThat(result.output).contains("COMPILE_JAVA_FORK=false")
-    // The user sees, at the default log level, that a fork was discarded.
+    // The discarded fork is this plugin's own, so discarding it is logged at the info level.
     assertThat(result.output)
       .contains("Not forking :compileJava because the Checker Framework will not run")
+  }
+
+  @Test
+  fun `test forking is not undone if fork options are set after configuration`() {
+    buildFile.appendText(
+      """
+      checkerFramework {
+        version = "$TEST_CF_VERSION"
+        checkers = ["org.checkerframework.checker.nullness.NullnessChecker"]
+      }
+      gradle.taskGraph.whenReady {
+        tasks.compileJava.options.checkerFrameworkCompile.enabled = false
+        tasks.compileJava.options.fork = true
+        tasks.compileJava.options.forkOptions.memoryMaximumSize = "1g"
+      }
+      tasks.compileJava.doLast {
+        println "COMPILE_JAVA_FORK=" + options.fork
+        println "COMPILE_JAVA_MEMORY=" + options.forkOptions.memoryMaximumSize
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgs("compileJava")
+
+    // then
+    // The fork options were set after this plugin requested the fork, so the fork is one that the
+    // build script wants, even though the Checker Framework does not run on this compilation.
+    assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(result.output).contains("COMPILE_JAVA_FORK=true")
+    assertThat(result.output).contains("COMPILE_JAVA_MEMORY=1g")
+    assertThat(result.output).doesNotContain("Not forking :compileJava")
   }
 
   @Test
@@ -770,7 +805,7 @@ class CFGroovyPluginFunctionalTest : GroovyPluginFunctionalTest() {
     testProjectDir.writeEmptyClass()
 
     // when
-    val result = testProjectDir.buildWithArgs("compileJava")
+    val result = testProjectDir.buildWithArgs("compileJava", "--info")
 
     // then
     // A null annotationProcessorPath means that annotation processing is disabled, so no checker

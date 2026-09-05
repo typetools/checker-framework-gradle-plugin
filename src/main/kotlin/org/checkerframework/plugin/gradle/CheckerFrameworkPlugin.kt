@@ -28,6 +28,7 @@ import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.SourceSetContainer
 import org.gradle.api.tasks.TaskProvider
+import org.gradle.api.tasks.compile.ForkOptions
 import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.kotlin.dsl.getByName
 import org.gradle.kotlin.dsl.getByType
@@ -43,6 +44,25 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
   companion object {
     const val PLUGIN_ID = "org.checkerframework"
     const val CONFIGURATION_NAME = "checkerFramework"
+
+    /**
+     * Returns a description of the given fork options, for determining whether the fork options
+     * have changed since some earlier moment. JVM argument providers are not described, because
+     * this plugin adds one of its own.
+     *
+     * @param forkOptions the fork options to describe
+     * @return a description of the fork options
+     */
+    private fun forkOptionsDescription(forkOptions: ForkOptions): String =
+      listOf(
+          forkOptions.javaHome,
+          forkOptions.executable,
+          forkOptions.tempDir,
+          forkOptions.memoryInitialSize,
+          forkOptions.memoryMaximumSize,
+          forkOptions.jvmArgs,
+        )
+        .toString()
   }
 
   override fun apply(project: Project) {
@@ -94,10 +114,10 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
     // configureJavaCompileTasks leaves the task alone, is not compiled with the Checker Framework.
     val cfEnabled = HashMap<String, Property<Boolean>>()
 
-    // Whether this plugin requested forking for a [JavaCompile] task, by task name.
-    // requestFork sets each value; a task whose value is never set, because
-    // configureJavaCompileTasks leaves the task alone, was not made to fork by this plugin.
-    val cfRequestedFork = HashMap<String, Property<Boolean>>()
+    // The fork that this plugin requested for a [JavaCompile] task, by task name. Each value is
+    // the task's fork options as of the request. requestFork sets a value only for a task that it
+    // makes fork, so a property with no value means that this plugin did not make the task fork.
+    val cfForkRequest = HashMap<String, Property<String>>()
 
     project.tasks.withType<JavaCompile>().configureEach {
       (options as ExtensionAware)
@@ -111,10 +131,10 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
       // property, whose value configureJavaCompileTasks sets after the build script has run.
       val enabled = project.objects.property(Boolean::class.java)
       cfEnabled[name] = enabled
-      val requestedFork = project.objects.property(Boolean::class.java)
-      cfRequestedFork[name] = requestedFork
+      val forkRequest = project.objects.property(String::class.java)
+      cfForkRequest[name] = forkRequest
       doFirst(
-        ApplyCheckerFrameworkOptions(enabled, cfExtension.checkers, cfManifestFiles, requestedFork)
+        ApplyCheckerFrameworkOptions(enabled, cfExtension.checkers, cfManifestFiles, forkRequest)
       )
     }
 
@@ -134,7 +154,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
     // Configure after the build script has run, so that the values of the extensions and of the
     // project properties are the ones the user requested, no matter when a task is realized.
     afterEvaluateOrNow(project) {
-      configureJavaCompileTasks(project, cfExtension, cfManifestFiles, cfEnabled, cfRequestedFork)
+      configureJavaCompileTasks(project, cfExtension, cfManifestFiles, cfEnabled, cfForkRequest)
     }
 
     // Handle Lombok
@@ -142,7 +162,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
       val javaPluginExtension: JavaPluginExtension =
         project.extensions.getByType(JavaPluginExtension::class.java)
       javaPluginExtension.sourceSets.configureEach {
-        addCheckDelombokTask(this, project, cfEnabled, cfRequestedFork)
+        addCheckDelombokTask(this, project, cfEnabled, cfForkRequest)
       }
     }
   }
@@ -273,15 +293,15 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
    * @param cfManifestFiles the Checker Framework manifest directory
    * @param cfEnabled for each task, the property that says whether to run the Checker Framework on
    *   it, which this method sets
-   * @param cfRequestedFork for each task, the property that says whether this plugin made the task
-   *   fork, which this method sets
+   * @param cfForkRequest for each task, the property that records the fork that this plugin
+   *   requested, which this method sets
    */
   private fun configureJavaCompileTasks(
     project: Project,
     cfExtension: CheckerFrameworkExtension,
     cfManifestFiles: FileCollection,
     cfEnabled: Map<String, Property<Boolean>>,
-    cfRequestedFork: Map<String, Property<Boolean>>,
+    cfForkRequest: Map<String, Property<String>>,
   ) {
     project.tasks.withType<JavaCompile>().configureEach {
       // The "skipCheckerFramework" project property is read here, rather than once outside this
@@ -324,7 +344,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
       )
       options.forkOptions.jvmArgumentProviders.add(CheckerFrameworkJvmArgumentProvider(enabled))
 
-      requestFork(this, enabled.get(), cfRequestedFork)
+      requestFork(this, enabled.get(), cfForkRequest)
 
       // The manifest directory, or no files if the Checker Framework is disabled. The manifest
       // directory carries a dependency on the task that writes it, so that task runs only if some
@@ -356,8 +376,8 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
   }
 
   /**
-   * Makes the given task fork, if the Checker Framework will run on it, and records whether this
-   * plugin made the task fork.
+   * Makes the given task fork, if the Checker Framework will run on it, and records the fork that
+   * this plugin requested.
    *
    * Forking is necessary for the JVM arguments to be applied. It is requested at configuration
    * time, rather than only by [ApplyCheckerFrameworkOptions], because `isFork` is a task input and
@@ -369,21 +389,28 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
    * that a compilation that the user enables later forks after all; and it undoes this request if
    * the Checker Framework will not run on the task after all.
    *
+   * This method does nothing for a task that this plugin has already made fork, so that calling it
+   * again does not discard the record of the earlier request.
+   *
    * @param task the task to make fork
    * @param enabled whether to run the Checker Framework on the task
-   * @param cfRequestedFork for each task, the property that says whether this plugin made the task
-   *   fork, which this method sets
+   * @param cfForkRequest for each task, the property that records the fork that this plugin
+   *   requested, which this method sets
    */
   private fun requestFork(
     task: JavaCompile,
     enabled: Boolean,
-    cfRequestedFork: Map<String, Property<Boolean>>,
+    cfForkRequest: Map<String, Property<String>>,
   ) {
+    val forkRequest = cfForkRequest.getValue(task.name)
+    if (forkRequest.isPresent) {
+      // This plugin has already made the task fork.
+      return
+    }
     val options = task.options
-    val requestedFork = enabled && !options.isFork && options.annotationProcessorPath != null
-    cfRequestedFork.getValue(task.name).set(requestedFork)
-    if (requestedFork) {
+    if (enabled && !options.isFork && options.annotationProcessorPath != null) {
       options.isFork = true
+      forkRequest.set(forkOptionsDescription(options.forkOptions))
     }
   }
 
@@ -395,14 +422,14 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
    * @param project current project
    * @param cfEnabled for each task, the property that says whether to run the Checker Framework on
    *   it
-   * @param cfRequestedFork for each task, the property that says whether this plugin made the task
-   *   fork, which this method sets for the checkDelombokCompileJava task
+   * @param cfForkRequest for each task, the property that records the fork that this plugin
+   *   requested, which this method sets for the checkDelombokCompileJava task
    */
   private fun addCheckDelombokTask(
     sourceSet: SourceSet,
     project: Project,
     cfEnabled: Map<String, Property<Boolean>>,
-    cfRequestedFork: Map<String, Property<Boolean>>,
+    cfForkRequest: Map<String, Property<String>>,
   ) {
 
     val checkerTaskProvider: TaskProvider<JavaCompile> =
@@ -447,8 +474,9 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
 
       // Request forking now, rather than relying on configureJavaCompileTasks to have done so.
       // configureJavaCompileTasks ran when this method realized the task, above, at which time the
-      // task's annotationProcessorPath was still null and forking was therefore not requested.
-      requestFork(checkerTask, enabled.getOrElse(false), cfRequestedFork)
+      // task's annotationProcessorPath was usually still null and forking was therefore usually not
+      // requested.
+      requestFork(checkerTask, enabled.getOrElse(false), cfForkRequest)
       project.tasks.named("build").configure { dependsOn(checkerTask) }
     }
   }
@@ -653,13 +681,14 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
    *   the property has no value, which means that this plugin left the task alone
    * @param checkers the checkers to run
    * @param cfManifestFiles the Checker Framework manifest directory
-   * @param requestedFork whether this plugin made the task fork
+   * @param forkRequest the task's fork options as of when this plugin made the task fork, or no
+   *   value if this plugin did not make the task fork
    */
   internal class ApplyCheckerFrameworkOptions(
     private val enabled: Provider<Boolean>,
     private val checkers: ListProperty<String>,
     private val cfManifestFiles: FileCollection,
-    private val requestedFork: Provider<Boolean>,
+    private val forkRequest: Provider<String>,
   ) : Action<Task> {
     override fun execute(task: Task) {
       val options = (task as JavaCompile).options
@@ -726,21 +755,28 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
     /**
      * Undoes the forking that configuration time requested, when the Checker Framework was still
      * going to run on the task, so that a compilation that does not run the Checker Framework does
-     * not fork needlessly. Forking that this plugin did not request is left alone; a request that
-     * the user makes after this plugin's cannot be distinguished from this plugin's, and is undone
-     * as well.
+     * not fork needlessly. Forking that this plugin did not request is left alone, as is forking
+     * whose options other configuration set after this plugin's request, because such a fork is one
+     * that something other than this plugin wants. A bare request to fork, with no fork options,
+     * that the user makes after this plugin's cannot be distinguished from this plugin's, and is
+     * undone as well.
      *
      * @param task the task that will not run the Checker Framework
      */
     private fun undoFork(task: JavaCompile) {
-      if (requestedFork.getOrElse(false)) {
-        // The undoing is logged, at a log level that the user sees by default, because it discards
-        // a fork that the user may have asked for, along with its fork options.
-        task.logger.lifecycle(
-          "Not forking ${task.path} because the Checker Framework will not run on that task."
-        )
-        task.options.isFork = false
+      val requestedForkOptions = forkRequest.orNull ?: return
+      val options = task.options
+      if (requestedForkOptions != forkOptionsDescription(options.forkOptions)) {
+        // Other configuration set fork options after this plugin requested the fork, so the fork is
+        // wanted for its own sake.
+        return
       }
+      // The undoing is logged, at a log level that the user does not see by default, because the
+      // fork that it discards is this plugin's own.
+      task.logger.info(
+        "Not forking ${task.path} because the Checker Framework will not run on that task."
+      )
+      options.isFork = false
     }
   }
 
