@@ -785,6 +785,48 @@ class CFGroovyPluginFunctionalTest : GroovyPluginFunctionalTest() {
   }
 
   @Test
+  fun `test forking is not undone if a JVM argument provider is added after configuration`() {
+    buildFile.appendText(
+      """
+      checkerFramework {
+        version = "$TEST_CF_VERSION"
+        checkers = ["org.checkerframework.checker.nullness.NullnessChecker"]
+      }
+      gradle.taskGraph.whenReady {
+        tasks.compileJava.options.checkerFrameworkCompile.enabled = false
+        tasks.compileJava.options.forkOptions.jvmArgumentProviders.add(
+          new CommandLineArgumentProvider() {
+            @Override
+            Iterable<String> asArguments() {
+              return ["-Dcheckerframework.plugin.test=1"]
+            }
+          })
+      }
+      tasks.compileJava.doLast {
+        println "COMPILE_JAVA_FORK=" + options.fork
+        println "COMPILE_JAVA_JVM_ARGS=" +
+          options.forkOptions.jvmArgumentProviders.collectMany { it.asArguments().toList() }
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgs("compileJava")
+
+    // then
+    // The JVM argument provider was added after this plugin requested the fork, and its arguments
+    // are applied only if the compilation forks, so the fork is one that the build script wants,
+    // even though the Checker Framework does not run on this compilation.
+    assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(result.output).contains("COMPILE_JAVA_FORK=true")
+    assertThat(result.output).contains("COMPILE_JAVA_JVM_ARGS=[-Dcheckerframework.plugin.test=1]")
+    assertThat(result.output).doesNotContain("Not forking :compileJava")
+  }
+
+  @Test
   fun `test forking is undone if annotation processing is disabled after configuration`() {
     buildFile.appendText(
       """

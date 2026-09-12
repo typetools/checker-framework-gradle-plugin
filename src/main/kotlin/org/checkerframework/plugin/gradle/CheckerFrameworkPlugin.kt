@@ -47,8 +47,14 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
 
     /**
      * Returns a description of the given fork options, for determining whether the fork options
-     * have changed since some earlier moment. JVM argument providers are not described, because
-     * this plugin adds one of its own.
+     * have changed since some earlier moment. This plugin's own JVM argument provider is not
+     * described, because this plugin adds it before recording its fork request. Other JVM argument
+     * providers are described, so that a provider that other configuration adds after the fork
+     * request counts as a change; such a provider's arguments are applied only if the compilation
+     * forks.
+     *
+     * The other providers are described by their class names, which -- unlike identity hash codes
+     * -- are the same before and after the configuration cache serializes and deserializes them.
      *
      * @param forkOptions the fork options to describe
      * @return a description of the fork options
@@ -61,6 +67,9 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
           forkOptions.memoryInitialSize,
           forkOptions.memoryMaximumSize,
           forkOptions.jvmArgs,
+          forkOptions.jvmArgumentProviders
+            .filterNot { it is CheckerFrameworkJvmArgumentProvider }
+            .map { it.javaClass.name },
         )
         .toString()
   }
@@ -741,10 +750,10 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
      * Undoes the forking that configuration time requested, when the Checker Framework was still
      * going to run on the task, so that a compilation that does not run the Checker Framework does
      * not fork needlessly. Forking that this plugin did not request is left alone, as is forking
-     * whose options other configuration set after this plugin's request, because such a fork is one
-     * that something other than this plugin wants. A bare request to fork, with no fork options,
-     * that the user makes after this plugin's cannot be distinguished from this plugin's, and is
-     * undone as well.
+     * whose options other configuration set, or to whose JVM argument providers other configuration
+     * added, after this plugin's request, because such a fork is one that something other than this
+     * plugin wants. A bare request to fork, with no fork options, that the user makes after this
+     * plugin's cannot be distinguished from this plugin's, and is undone as well.
      *
      * @param task the task that will not run the Checker Framework
      */
