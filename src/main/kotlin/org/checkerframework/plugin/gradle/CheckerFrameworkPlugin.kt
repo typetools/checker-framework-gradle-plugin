@@ -716,6 +716,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
         undoFork(task)
         return
       }
+      requireManifest(task)
 
       // Must fork for the JVM arguments to be applied. Configuration time requests forking if the
       // Checker Framework was enabled then, but this ensures that no other configuration has undone
@@ -744,6 +745,36 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
           task.logger.warn("Found -processor argument without a value; no checkers will be used.")
         }
       }
+    }
+
+    /**
+     * Throws an exception if the manifest that makes javac discover the checkers has not been
+     * written, which means that no checker would run on the given task.
+     *
+     * The manifest directory is an input of every task that this plugin enables, so the task that
+     * writes it is in the task graph -- and has run by now -- if the Checker Framework was enabled
+     * on any task when Gradle built the graph. If it was enabled only afterwards, for example by a
+     * `gradle.taskGraph.whenReady` action, then adding the task that writes the manifest is no
+     * longer possible. Without this check, the compilation would succeed while checking nothing,
+     * because javac silently runs no annotation processor when it discovers none.
+     *
+     * The manifest is written once per project rather than once per task, so a task that is enabled
+     * too late still finds the manifest, and is checked, if another task in the same build was
+     * enabled in time. Hence this checks the manifest itself rather than when the task was enabled.
+     *
+     * @param task the task that the Checker Framework is enabled on
+     */
+    private fun requireManifest(task: Task) {
+      if (
+        cfManifestFiles.files.any { File(it, WriteCheckerManifestTask.PROCESSOR_FILE_NAME).isFile }
+      ) {
+        return
+      }
+      throw IllegalStateException(
+        "The Checker Framework was enabled on ${task.path} too late for it to run: the manifest" +
+          " that makes javac discover the checkers was not written. Enable the Checker Framework" +
+          " while the build is being configured, no later than when Gradle builds the task graph."
+      )
     }
 
     /**

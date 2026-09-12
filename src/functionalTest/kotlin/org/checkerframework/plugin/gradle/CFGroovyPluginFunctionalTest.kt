@@ -468,6 +468,39 @@ class CFGroovyPluginFunctionalTest : GroovyPluginFunctionalTest() {
   }
 
   @Test
+  fun `test enabling the Checker Framework after the task graph is built fails`() {
+    buildFile.appendText(
+      """
+      checkerFramework {
+        version = "$TEST_CF_VERSION"
+        checkers = ["org.checkerframework.checker.nullness.NullnessChecker"]
+      }
+      compileJava {
+        options.checkerFrameworkCompile.enabled = false
+      }
+      gradle.taskGraph.whenReady {
+        tasks.compileJava.options.checkerFrameworkCompile.enabled = true
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeNullnessFailure()
+
+    // when
+    val result = testProjectDir.buildWithArgsAndFail("compileJava")
+
+    // then
+    // The task that writes the manifest was left out of the task graph, because the Checker
+    // Framework was disabled when the graph was built, so no checker can run on this compilation.
+    // The build fails rather than succeeding while checking nothing.
+    assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.FAILED)
+    assertThat(result.output)
+      .contains("The Checker Framework was enabled on :compileJava too late for it to run")
+    assertThat(result.output).doesNotContain(NULLNESS_FAILURE)
+  }
+
+  @Test
   fun `test running the Checker Framework after a build that skipped it`() {
     buildFile.appendText(
       """

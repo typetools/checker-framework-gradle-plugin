@@ -6,6 +6,14 @@ import org.gradle.testkit.runner.GradleRunner
 import org.gradle.util.GradleVersion
 
 val testJavaHome = System.getProperty("test.java-home", System.getProperty("java.home"))
+
+/**
+ * The major version of [testJavaHome], the Java version that runs the builds that the tests launch
+ * and therefore compiles the code that the tests check. It is not necessarily the version that runs
+ * the tests themselves, which is the version of this build's Kotlin toolchain.
+ */
+val testJavaVersion: Int =
+  System.getProperty("test.java-version")?.toInt() ?: Runtime.version().feature()
 val testGradleVersion =
   System.getProperty("test.gradle-version")?.let(GradleVersion::version) ?: GradleVersion.current()
 
