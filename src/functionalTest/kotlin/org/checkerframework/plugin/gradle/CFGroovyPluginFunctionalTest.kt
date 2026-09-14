@@ -861,6 +861,41 @@ class CFGroovyPluginFunctionalTest : GroovyPluginFunctionalTest() {
   }
 
   @Test
+  fun `test forking is not undone if the build requested forking`() {
+    buildFile.appendText(
+      """
+      compileJava {
+        options.fork = true
+      }
+      checkerFramework {
+        version = "$TEST_CF_VERSION"
+        checkers = ["org.checkerframework.checker.nullness.NullnessChecker"]
+      }
+      gradle.taskGraph.whenReady {
+        tasks.compileJava.options.checkerFrameworkCompile.enabled = false
+      }
+      tasks.compileJava.doLast {
+        println "COMPILE_JAVA_FORK=" + options.fork
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgs("compileJava")
+
+    // then
+    // The build script requested the fork, for reasons of its own, before this plugin would have
+    // requested it. This plugin therefore never requested it and does not undo it, even though the
+    // Checker Framework does not run on this compilation.
+    assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(result.output).contains("COMPILE_JAVA_FORK=true")
+    assertThat(result.output).doesNotContain("Not forking :compileJava")
+  }
+
+  @Test
   fun `test forking is not undone if fork options are set after configuration`() {
     buildFile.appendText(
       """
