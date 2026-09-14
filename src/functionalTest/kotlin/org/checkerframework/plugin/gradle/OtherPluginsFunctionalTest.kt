@@ -20,8 +20,8 @@ class OtherPluginsFunctionalTest : KotlinPluginFunctionalTest() {
 
   @Test
   fun `test lombok 8 12 1`() {
-    val majorVersion = Runtime.version().feature()
-    if (majorVersion >= 25) {
+    // Lombok 8.12.1 does not support Java 25 and later.
+    if (testJavaVersion >= 25) {
       return
     }
     buildFile.appendText(
@@ -46,8 +46,6 @@ class OtherPluginsFunctionalTest : KotlinPluginFunctionalTest() {
     // when
     val result = testProjectDir.buildWithArgsAndFail("build")
 
-    if (majorVersion >= 25) {
-
       // then
       assertThat(result.output)
         .contains(
@@ -56,7 +54,6 @@ class OtherPluginsFunctionalTest : KotlinPluginFunctionalTest() {
       assertThat(result.output)
         .contains("Foo.java:12: error: [assignment] incompatible types in assignment.")
     }
-  }
 
   @Test
   fun `test lombok latest`() {
@@ -207,8 +204,8 @@ class OtherPluginsFunctionalTest : KotlinPluginFunctionalTest() {
 
   @Test
   fun `test errorprone latest`() {
-    val majorVersion = Runtime.version().feature()
-    if (majorVersion < 21) {
+    // Error Prone 4.0.1 does not support Java versions before 21.
+    if (testJavaVersion < 21) {
       return
     }
     buildFile.delete()
@@ -250,7 +247,6 @@ class OtherPluginsFunctionalTest : KotlinPluginFunctionalTest() {
     // when
     val result = testProjectDir.buildWithArgsAndFail("build")
 
-    if (majorVersion < 21) {
       // then
       assertThat(result.output)
         .contains(
@@ -260,6 +256,5 @@ class OtherPluginsFunctionalTest : KotlinPluginFunctionalTest() {
         .contains(
           "Demo.java:8: error: [argument] incompatible argument for parameter arg0 of Set.add."
         )
-    }
   }
 }
