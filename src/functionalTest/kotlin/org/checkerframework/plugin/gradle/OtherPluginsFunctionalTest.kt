@@ -234,6 +234,12 @@ class OtherPluginsFunctionalTest : KotlinPluginFunctionalTest() {
           }
           tasks.withType<JavaCompile>().configureEach {
               options.errorprone.warn("CollectionIncompatibleType")
+              // Error Prone requires these javac arguments, which its Gradle plugin does not add.
+              options.compilerArgs.addAll(
+                  listOf(
+                      "-XDcompilePolicy=simple",
+                      "--should-stop=ifError=FLOW",
+                      "-XDaddTypeAnnotationsToSymbol=true"))
           }
 
           configure<CheckerFrameworkExtension> {
