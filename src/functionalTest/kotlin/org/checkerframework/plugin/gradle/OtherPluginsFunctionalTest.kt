@@ -46,14 +46,14 @@ class OtherPluginsFunctionalTest : KotlinPluginFunctionalTest() {
     // when
     val result = testProjectDir.buildWithArgsAndFail("build")
 
-      // then
-      assertThat(result.output)
-        .contains(
-          "User.java:9: error: [argument] incompatible argument for parameter y of FooBuilder.y."
-        )
-      assertThat(result.output)
-        .contains("Foo.java:12: error: [assignment] incompatible types in assignment.")
-    }
+    // then
+    assertThat(result.output)
+      .contains(
+        "User.java:9: error: [argument] incompatible argument for parameter y of FooBuilder.y."
+      )
+    assertThat(result.output)
+      .contains("Foo.java:12: error: [assignment] incompatible types in assignment.")
+  }
 
   @Test
   fun `test lombok latest`() {
@@ -247,14 +247,14 @@ class OtherPluginsFunctionalTest : KotlinPluginFunctionalTest() {
     // when
     val result = testProjectDir.buildWithArgsAndFail("build")
 
-      // then
-      assertThat(result.output)
-        .contains(
-          "Demo.java:7: warning: [CollectionIncompatibleType] Argument 'i - 1' should not be passed to this method; its type int is not compatible with its collection's type argument Short"
-        )
-      assertThat(result.output)
-        .contains(
-          "Demo.java:8: error: [argument] incompatible argument for parameter arg0 of Set.add."
-        )
+    // then
+    assertThat(result.output)
+      .contains(
+        "Demo.java:7: warning: [CollectionIncompatibleType] Argument 'i - 1' should not be passed to this method; its type int is not compatible with its collection's type argument Short"
+      )
+    assertThat(result.output)
+      .contains(
+        "Demo.java:8: error: [argument] incompatible argument for parameter arg0 of Set.add."
+      )
   }
 }
