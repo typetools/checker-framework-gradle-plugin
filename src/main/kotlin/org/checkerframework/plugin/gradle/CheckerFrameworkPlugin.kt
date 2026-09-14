@@ -54,9 +54,6 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
      * request counts as a change; such a provider's arguments are applied only if the compilation
      * forks.
      *
-     * The other providers are described by their class names, which -- unlike identity hash codes
-     * -- are the same before and after the configuration cache serializes and deserializes them.
-     *
      * @param forkOptions the fork options to describe
      * @return a description of the fork options
      */
