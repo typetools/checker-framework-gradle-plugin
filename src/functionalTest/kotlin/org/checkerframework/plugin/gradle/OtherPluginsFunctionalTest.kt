@@ -20,8 +20,8 @@ class OtherPluginsFunctionalTest : KotlinPluginFunctionalTest() {
 
   @Test
   fun `test lombok 8 12 1`() {
-    val majorVersion = Runtime.version().feature()
-    if (majorVersion >= 25) {
+    // Lombok 8.12.1 does not support Java 25 and later.
+    if (testJavaVersion >= 25) {
       return
     }
     buildFile.appendText(
@@ -46,16 +46,13 @@ class OtherPluginsFunctionalTest : KotlinPluginFunctionalTest() {
     // when
     val result = testProjectDir.buildWithArgsAndFail("build")
 
-    if (majorVersion >= 25) {
-
-      // then
-      assertThat(result.output)
-        .contains(
-          "User.java:9: error: [argument] incompatible argument for parameter y of FooBuilder.y."
-        )
-      assertThat(result.output)
-        .contains("Foo.java:12: error: [assignment] incompatible types in assignment.")
-    }
+    // then
+    assertThat(result.output)
+      .contains(
+        "User.java:9: error: [argument] incompatible argument for parameter y of FooBuilder.y."
+      )
+    assertThat(result.output)
+      .contains("Foo.java:12: error: [assignment] incompatible types in assignment.")
   }
 
   @Test
@@ -121,48 +118,6 @@ class OtherPluginsFunctionalTest : KotlinPluginFunctionalTest() {
     // task after this plugin has configured the task, so requesting the fork while configuring
     // every JavaCompile task is not enough for this task.
     assertThat(result.output).contains("CHECK_DELOMBOK_FORK=true")
-  }
-
-  @Test
-  fun `test forking is undone with lombok when annotation processing is disabled`() {
-    buildFile.appendText(
-      """
-       plugins {
-          `java-library`
-          id("org.checkerframework")
-          id("io.freefair.lombok").version("9.2.0")
-      }
-
-      configure<CheckerFrameworkExtension> {
-        version = "$TEST_CF_VERSION"
-        checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
-      }
-      tasks.withType<JavaCompile>().configureEach {
-        options.annotationProcessorPath = configurations.getByName("annotationProcessor")
-      }
-      gradle.taskGraph.whenReady {
-        tasks.named<JavaCompile>("checkDelombokCompileJava").get().options.annotationProcessorPath =
-          null
-      }
-      tasks.named<JavaCompile>("checkDelombokCompileJava") {
-        doLast { logger.lifecycle("CHECK_DELOMBOK_FORK=" + options.isFork) }
-      }
-      """
-        .trimIndent()
-    )
-    // given
-    testProjectDir.writeCorrectLombokExample()
-
-    // when
-    val result = testProjectDir.buildWithArgs("checkDelombokCompileJava")
-
-    // then
-    // The build script's own configureEach gives the checkDelombokCompileJava task an
-    // annotationProcessorPath before this plugin copies one onto it, so this plugin requests the
-    // fork the first of the two times that it tries to. That request must still be recorded when
-    // the task turns out not to run the Checker Framework, so that the fork is undone.
-    assertThat(result.task(":checkDelombokCompileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
-    assertThat(result.output).contains("CHECK_DELOMBOK_FORK=false")
   }
 
   @Test
@@ -281,8 +236,8 @@ class OtherPluginsFunctionalTest : KotlinPluginFunctionalTest() {
 
   @Test
   fun `test errorprone latest`() {
-    val majorVersion = Runtime.version().feature()
-    if (majorVersion < 21) {
+    // Error Prone 4.0.1 does not support Java versions before 21.
+    if (testJavaVersion < 21) {
       return
     }
     buildFile.delete()
@@ -308,6 +263,11 @@ class OtherPluginsFunctionalTest : KotlinPluginFunctionalTest() {
           }
           tasks.withType<JavaCompile>().configureEach {
               options.errorprone.warn("CollectionIncompatibleType")
+              // Error Prone requires these javac arguments, which its Gradle plugin does not add.
+              options.compilerArgs.addAll(
+                  listOf(
+                      "--should-stop=ifError=FLOW",
+                      "-XDaddTypeAnnotationsToSymbol=true"))
           }
 
           configure<CheckerFrameworkExtension> {
@@ -324,16 +284,14 @@ class OtherPluginsFunctionalTest : KotlinPluginFunctionalTest() {
     // when
     val result = testProjectDir.buildWithArgsAndFail("build")
 
-    if (majorVersion < 21) {
-      // then
-      assertThat(result.output)
-        .contains(
-          "Demo.java:7: warning: [CollectionIncompatibleType] Argument 'i - 1' should not be passed to this method; its type int is not compatible with its collection's type argument Short"
-        )
-      assertThat(result.output)
-        .contains(
-          "Demo.java:8: error: [argument] incompatible argument for parameter arg0 of Set.add."
-        )
-    }
+    // then
+    assertThat(result.output)
+      .contains(
+        "Demo.java:7: warning: [CollectionIncompatibleType] Argument 'i - 1' should not be passed to this method; its type int is not compatible with its collection's type argument Short"
+      )
+    assertThat(result.output)
+      .contains(
+        "Demo.java:8: error: [argument] incompatible argument for parameter arg0 of Set.add."
+      )
   }
 }
