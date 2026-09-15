@@ -737,6 +737,37 @@ class CfPluginFunctionalTest : KotlinPluginFunctionalTest() {
   }
 
   @Test
+  fun `test enabling the Checker Framework after the task graph is computed fails`() {
+    buildFile.appendText(
+      """
+      configure<CheckerFrameworkExtension> {
+        version = "$TEST_CF_VERSION"
+        checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+        skipCheckerFramework = true
+      }
+      // Too late: the writeCheckerManifest task is not in the task graph, so no checker would run.
+      gradle.taskGraph.whenReady {
+        the<CheckerFrameworkExtension>().skipCheckerFramework = false
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgsAndFail("compileJava")
+
+    // then
+    assertThat(result.output)
+      .contains(
+        "The Checker Framework was enabled on :compileJava too late for it to run: " +
+          "the manifest that makes javac discover the checkers was not written. " +
+          "Enable the Checker Framework while the build is being configured, no later than when Gradle builds the task graph."
+      )
+  }
+
+  @Test
   fun `test exclude rules that the checkerFramework configuration inherits are used`() {
     buildFile.appendText(
       """
