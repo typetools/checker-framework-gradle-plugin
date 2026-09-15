@@ -468,6 +468,117 @@ class CFGroovyPluginFunctionalTest : GroovyPluginFunctionalTest() {
   }
 
   @Test
+  fun `test enabling the Checker Framework after the task graph is built fails`() {
+    buildFile.appendText(
+      """
+      checkerFramework {
+        version = "$TEST_CF_VERSION"
+        checkers = ["org.checkerframework.checker.nullness.NullnessChecker"]
+      }
+      compileJava {
+        options.checkerFrameworkCompile.enabled = false
+      }
+      gradle.taskGraph.whenReady {
+        tasks.compileJava.options.checkerFrameworkCompile.enabled = true
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeNullnessFailure()
+
+    // when
+    val result = testProjectDir.buildWithArgsAndFail("compileJava")
+
+    // then
+    // The task that writes the manifest was left out of the task graph, because the Checker
+    // Framework was disabled when the graph was built, so no checker can run on this compilation.
+    // The build fails rather than succeeding while checking nothing.
+    assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.FAILED)
+    assertThat(result.output)
+      .contains("The Checker Framework was enabled on :compileJava too late for it to run")
+    assertThat(result.output).doesNotContain(NULLNESS_FAILURE)
+  }
+
+  @Test
+  fun `test enabling the Checker Framework after the task graph is built fails after a build that wrote the manifest`() {
+    buildFile.appendText(
+      """
+      checkerFramework {
+        version = "$TEST_CF_VERSION"
+        checkers = ["org.checkerframework.checker.nullness.NullnessChecker"]
+      }
+      if (project.hasProperty("lateEnable")) {
+        compileJava {
+          options.checkerFrameworkCompile.enabled = false
+        }
+        gradle.taskGraph.whenReady {
+          tasks.compileJava.options.checkerFrameworkCompile.enabled = true
+        }
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when a build that enables the Checker Framework in time writes the manifest
+    val inTime = testProjectDir.buildWithArgs("compileJava")
+
+    // then
+    assertThat(inTime.task(":writeCheckerManifest")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(inTime.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+
+    // when a later build enables the Checker Framework too late
+    testProjectDir.writeNullnessFailure()
+    val tooLate = testProjectDir.buildWithArgsAndFail("compileJava", "-PlateEnable")
+
+    // then
+    // The manifest that the earlier build wrote is still on disk, but the task that writes it is
+    // not in this build's task graph, so nothing keeps that manifest up to date and Gradle does not
+    // know that this compilation depends on it. The build fails rather than relying on the
+    // leftover.
+    assertThat(tooLate.task(":writeCheckerManifest")).isNull()
+    assertThat(tooLate.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.FAILED)
+    assertThat(tooLate.output)
+      .contains("The Checker Framework was enabled on :compileJava too late for it to run")
+  }
+
+  @Test
+  fun `test enabling the Checker Framework after the task graph is built works if another task enabled it in time`() {
+    buildFile.appendText(
+      """
+      checkerFramework {
+        version = "$TEST_CF_VERSION"
+        checkers = ["org.checkerframework.checker.nullness.NullnessChecker"]
+      }
+      compileJava {
+        options.checkerFrameworkCompile.enabled = false
+      }
+      gradle.taskGraph.whenReady {
+        tasks.compileJava.options.checkerFrameworkCompile.enabled = true
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeNullnessFailure()
+    testProjectDir.writeTestClass()
+
+    // when compileTestJava, on which the Checker Framework was enabled in time, is also built
+    val result = testProjectDir.buildWithArgsAndFail("compileTestJava")
+
+    // then
+    // The manifest is written once per project, and compileTestJava put the task that writes it in
+    // the task graph, so the manifest that this build writes is available to compileJava as well,
+    // which is therefore checked rather than failing.
+    assertThat(result.task(":writeCheckerManifest")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.FAILED)
+    assertThat(result.output).doesNotContain("too late for it to run")
+    assertThat(result.output).contains(NULLNESS_FAILURE)
+  }
+
+  @Test
   fun `test running the Checker Framework after a build that skipped it`() {
     buildFile.appendText(
       """
@@ -686,6 +797,34 @@ class CFGroovyPluginFunctionalTest : GroovyPluginFunctionalTest() {
     // then
     assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
     assertThat(result.output).doesNotContain("Note: Checker Framework $TEST_CF_VERSION")
+  }
+
+  @Test
+  fun `test forking is visible at configuration time`() {
+    buildFile.appendText(
+      """
+      checkerFramework {
+        version = "$TEST_CF_VERSION"
+        checkers = ["org.checkerframework.checker.nullness.NullnessChecker"]
+      }
+      tasks.register("printFork") {
+        def fork = tasks.compileJava.options.fork
+        doLast {
+          println "COMPILE_JAVA_FORK=" + fork
+        }
+      }
+      """
+        .trimIndent()
+    )
+
+    // when
+    val result = testProjectDir.buildWithArgs("printFork")
+
+    // then
+    // ApplyCheckerFrameworkOptions also sets `fork`, at execution time, so that no other
+    // configuration can undo it. But `fork` is a task input and other configuration may read it,
+    // so it must be set at configuration time as well.
+    assertThat(result.output).contains("COMPILE_JAVA_FORK=true")
   }
 
   @Test

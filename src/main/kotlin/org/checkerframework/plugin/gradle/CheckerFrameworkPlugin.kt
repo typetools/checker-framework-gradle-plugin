@@ -13,6 +13,7 @@ import org.gradle.api.Transformer
 import org.gradle.api.artifacts.Configuration
 import org.gradle.api.artifacts.Dependency
 import org.gradle.api.artifacts.dsl.DependencyHandler
+import org.gradle.api.file.Directory
 import org.gradle.api.file.FileCollection
 import org.gradle.api.model.ObjectFactory
 import org.gradle.api.plugins.ExtensionAware
@@ -77,12 +78,25 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
         addDefaultCFDependencies(cfVersion, project, "checker-qual")
       }
 
+    // Records the manifest directories that this build writes, so that a compilation can tell
+    // whether the manifest it finds is this build's or an earlier build's leftover.
+    val manifestService =
+      project.gradle.sharedServices.registerIfAbsent(
+        "checkerFrameworkManifest",
+        CheckerManifestService::class.java,
+      ) {}
+
     val writeManifestTask =
       project.tasks.register("writeCheckerManifest", WriteCheckerManifestTask::class.java) {
         group = "Checker Framework"
         checkers.set(cfExtension.checkers)
         incrementalize.set(cfExtension.incrementalize)
         cfBuildDir.set(project.layout.buildDirectory.dir("checkerframework"))
+        usesService(manifestService)
+        // An `onlyIf` spec, rather than a task action, records that this task is in the task graph,
+        // because Gradle evaluates the spec even when the task is up to date, in which case the
+        // task runs no action but its output is still the one that this build produces.
+        onlyIf(MarkManifestInTaskGraph(manifestService, cfBuildDir))
       }
 
     // A file collection containing the manifest directory, which carries a dependency on the task
@@ -106,7 +120,20 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
       // property, whose value configureJavaCompileTasks sets after the build script has run.
       val enabled = project.objects.property(Boolean::class.java)
       cfEnabled[name] = enabled
-      doFirst(ApplyCheckerFrameworkOptions(enabled, cfExtension.checkers, cfManifestFiles))
+      usesService(manifestService)
+      // Run after the task that writes the manifest, if that task is in the task graph, so that the
+      // manifest is written and recorded before this task checks for it. This does not put that
+      // task in the graph, so a compilation on which the Checker Framework is disabled still does
+      // not cause the manifest to be written.
+      mustRunAfter(writeManifestTask)
+      doFirst(
+        ApplyCheckerFrameworkOptions(
+          enabled,
+          cfExtension.checkers,
+          cfManifestFiles,
+          manifestService,
+        )
+      )
     }
 
     // Register the actions that add dependencies now, rather than after the build script has run,
@@ -312,6 +339,8 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
       )
       options.forkOptions.jvmArgumentProviders.add(CheckerFrameworkJvmArgumentProvider(enabled))
 
+      requestFork(this, enabled.get())
+
       // The manifest directory, or no files if the Checker Framework is disabled. The manifest
       // directory carries a dependency on the task that writes it, so that task runs only if some
       // compilation uses the Checker Framework.
@@ -338,6 +367,32 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
       // The rest of the configuration is done by the task action that was registered while this
       // plugin was being applied; enabling it here is what makes that action do anything.
       cfEnabled.getValue(name).set(enabled)
+    }
+  }
+
+  /**
+   * Makes the given task fork, if the Checker Framework will run on it.
+   *
+   * Forking is necessary for the JVM arguments to be applied. It is requested at configuration
+   * time, rather than only by [ApplyCheckerFrameworkOptions], because `isFork` is a task input and
+   * because other configuration may read it. It is requested only if the Checker Framework is
+   * enabled as of now and annotation processing is configured; a null annotationProcessorPath means
+   * that annotation processing is disabled, so no checker will run. [ApplyCheckerFrameworkOptions]
+   * requests forking again at execution time, so that no other configuration can undo it and so
+   * that a compilation that the user enables later forks after all.
+   *
+   * A fork that this plugin requested is never undone, not even if the Checker Framework turns out
+   * not to run on the task after all. A forked compilation uses mildly more resources but otherwise
+   * produces the same results, whereas undoing a fork could interfere with what another plugin or
+   * the build script wants and makes this plugin's behavior less predictable.
+   *
+   * @param task the task to make fork
+   * @param enabled whether to run the Checker Framework on the task
+   */
+  private fun requestFork(task: JavaCompile, enabled: Boolean) {
+    val options = task.options
+    if (enabled && options.annotationProcessorPath != null) {
+      options.isFork = true
     }
   }
 
@@ -393,7 +448,14 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
 
       // Running the Checker Framework is the only purpose of this task, so do not run the task at
       // all if the Checker Framework is disabled on it.
-      checkerTask.onlyIf(RunOnlyIfCheckerFrameworkEnabled(cfEnabled.getValue(checkerTask.name)))
+      val enabled = cfEnabled.getValue(checkerTask.name)
+      checkerTask.onlyIf(RunOnlyIfCheckerFrameworkEnabled(enabled))
+
+      // Request forking now, rather than relying on configureJavaCompileTasks to have done so.
+      // configureJavaCompileTasks ran when this method realized the task, above, at which time the
+      // task's annotationProcessorPath was usually still null and forking was therefore usually not
+      // requested.
+      requestFork(checkerTask, enabled.getOrElse(false))
       project.tasks.named("build").configure { dependsOn(checkerTask) }
     }
   }
@@ -588,6 +650,25 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
   }
 
   /**
+   * Records, in the build service, that the task that writes the manifest is part of the current
+   * build's task graph, and always lets the task run. Gradle evaluates the spec when the task is
+   * about to run, which is before any [JavaCompile] task that this plugin configures, because such
+   * a task either depends on the manifest or must run after it.
+   *
+   * @param manifestService the service that records the manifest directories that this build writes
+   * @param cfBuildDir the manifest directory that the task writes
+   */
+  internal class MarkManifestInTaskGraph(
+    private val manifestService: Provider<CheckerManifestService>,
+    private val cfBuildDir: Provider<Directory>,
+  ) : Spec<Task> {
+    override fun isSatisfiedBy(task: Task): Boolean {
+      manifestService.get().markInTaskGraph(cfBuildDir.get().asFile)
+      return true
+    }
+  }
+
+  /**
    * The part of the Checker Framework configuration of a [JavaCompile] task that has to run after
    * all other configuration of the task. Because it is a task action, it runs after configuration
    * is complete. It is registered while this plugin is being applied, so it also runs after every
@@ -598,13 +679,16 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
    *   the property has no value, which means that this plugin left the task alone
    * @param checkers the checkers to run
    * @param cfManifestFiles the Checker Framework manifest directory
+   * @param manifestService the service that records the manifest directories that this build writes
    */
   internal class ApplyCheckerFrameworkOptions(
     private val enabled: Provider<Boolean>,
     private val checkers: ListProperty<String>,
     private val cfManifestFiles: FileCollection,
+    private val manifestService: Provider<CheckerManifestService>,
   ) : Action<Task> {
     override fun execute(task: Task) {
+      val options = (task as JavaCompile).options
       if (!enabled.getOrElse(false)) {
         return
       }
@@ -612,12 +696,17 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
       if (checkerNames.isEmpty()) {
         throw IllegalStateException("Must specify checkers for the Checker Framework.")
       }
-      val options = (task as JavaCompile).options
       // If the annotationProcessorPath is null, then annotation processing is disabled, so no
       // checker will run and there is nothing to configure.
-      val annotationProcessorPath = options.annotationProcessorPath ?: return
+      val annotationProcessorPath = options.annotationProcessorPath
+      if (annotationProcessorPath == null) {
+        return
+      }
+      requireManifest(task)
 
-      // Must fork for the JVM arguments to be applied.
+      // Must fork for the JVM arguments to be applied. Configuration time requests forking if the
+      // Checker Framework was enabled then, but this ensures that no other configuration has undone
+      // it and that a compilation that the user enabled later forks as well.
       options.isFork = true
 
       // The path already contains the manifest directory unless some other configuration replaced
@@ -642,6 +731,50 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
           task.logger.warn("Found -processor argument without a value; no checkers will be used.")
         }
       }
+    }
+
+    /**
+     * Throws an exception if the current build does not write the manifest that makes javac
+     * discover the checkers, which means that no checker would run on the given task.
+     *
+     * The manifest directory is an input of every task that this plugin enables, so the task that
+     * writes it is in the task graph -- and has run by now -- if the Checker Framework was enabled
+     * on any task when Gradle built the graph. If it was enabled only afterwards, for example by a
+     * `gradle.taskGraph.whenReady` action, then adding the task that writes the manifest is no
+     * longer possible. Without this check, the compilation would succeed while checking nothing,
+     * because javac silently runs no annotation processor when it discovers none.
+     *
+     * The manifest is written once per project rather than once per task, so a task that is enabled
+     * too late still finds the manifest, and is checked, if another task in the same build was
+     * enabled in time. Hence this checks the manifest itself rather than when the task was enabled.
+     * Every task that this plugin configures must run after the task that writes the manifest, so
+     * that task, if it is in the graph, has written and recorded the manifest by the time of this
+     * check even when the task being checked does not depend on it.
+     *
+     * A manifest that an earlier build left on disk does not count, even though javac would
+     * discover the checkers in it. Nothing keeps such a manifest up to date with the configuration
+     * of this build, and Gradle does not know that this compilation depends on it, so the
+     * compilation would run the checkers that the earlier build wrote, or be considered up to date
+     * and run none at all. The build service therefore records the manifests that this build's task
+     * graph writes.
+     *
+     * @param task the task that the Checker Framework is enabled on
+     */
+    private fun requireManifest(task: Task) {
+      val writtenManifests = manifestService.get()
+      if (
+        cfManifestFiles.files.any {
+          writtenManifests.isInTaskGraph(it) &&
+            File(it, WriteCheckerManifestTask.PROCESSOR_FILE_NAME).isFile
+        }
+      ) {
+        return
+      }
+      throw IllegalStateException(
+        "The Checker Framework was enabled on ${task.path} too late for it to run: the manifest" +
+          " that makes javac discover the checkers was not written. Enable the Checker Framework" +
+          " while the build is being configured, no later than when Gradle builds the task graph."
+      )
     }
   }
 
