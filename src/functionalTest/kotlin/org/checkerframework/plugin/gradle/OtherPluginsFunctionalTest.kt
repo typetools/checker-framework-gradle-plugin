@@ -308,7 +308,6 @@ class OtherPluginsFunctionalTest : KotlinPluginFunctionalTest() {
               // Error Prone requires these javac arguments, which its Gradle plugin does not add.
               options.compilerArgs.addAll(
                   listOf(
-                      "-XDcompilePolicy=simple",
                       "--should-stop=ifError=FLOW",
                       "-XDaddTypeAnnotationsToSymbol=true"))
           }
