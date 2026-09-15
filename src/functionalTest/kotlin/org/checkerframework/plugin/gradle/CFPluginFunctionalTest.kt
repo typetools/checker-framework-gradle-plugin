@@ -759,7 +759,10 @@ class CfPluginFunctionalTest : KotlinPluginFunctionalTest() {
     val result = testProjectDir.buildWithArgsAndFail("compileJava")
 
     // then
-    assertThat(result.output).contains("The Checker Framework manifest was not written")
+    result.output shouldContain
+      "The Checker Framework was enabled on :compileJava too late for it to run: " +
+      "the manifest that makes javac discover the checkers was not written. " +
+      "Enable the Checker Framework while the build is being configured, no later than when Gradle builds the task graph."
   }
 
   @Test
