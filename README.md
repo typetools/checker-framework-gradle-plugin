@@ -17,9 +17,10 @@ plugins {
 If you are upgrading from plugin version 0.x to 1.x, see the [migration
 guide](#migrating-from-0x-to-1x).
 
-The plugin supports Gradle versions 7.3 and above, which requires Java 17 and
-above.  Although you must compile your project using at least Java 17, the
-compiled classfiles can be compatible with, and can run on, any version of Java.
+The plugin supports Gradle version 7.3 and later, and it requires Java 17 or
+later.  Although you must compile your project using at least Java 17, the
+compiled class files can be compatible with, and can run on, any version of
+Java.
 
 The plugin is compatible with Gradle's [configuration
 cache](https://docs.gradle.org/current/userguide/configuration_cache.html).
@@ -32,7 +33,7 @@ You must specify which
 [version](https://github.com/typetools/checker-framework/releases) of the
 Checker Framework to use.
 
-* The Gradle developers recommend to modify two files.  Add this to `build.gradle`:
+* The Gradle developers recommend modifying two files.  Add this to `build.gradle`:
 
   ```groovy
   checkerFramework {
@@ -47,7 +48,7 @@ Checker Framework to use.
   checker-framework = "org.checkerframework:checker:4.2.3"
   ```
 
-* Alternately, you can edit just one file.  Add this to `build.gradle`:
+* Alternatively, you can edit just one file.  Add this to `build.gradle`:
 
   ```groovy
   checkerFramework {
@@ -55,16 +56,17 @@ Checker Framework to use.
   }
   ```
 
-The special value **"local"** means to use a locally-built version of the
-Checker Framework, found at environment variable `$CHECKERFRAMEWORK`.
+The special value **"local"** means to use a locally built version of the
+Checker Framework, in the directory named by the `CHECKERFRAMEWORK` environment
+variable.
 
 The command-line argument **`-PcfVersion=...`** (where "..." is a version number
-or "local") overrides settings in gradle buildfiles.
+or "local") overrides settings in Gradle build files.
 
 #### Checker Framework jar files
 
-Alternately, you can directly specify which checker and checker-qual jars to
-use. You must also set the Checker Framework version to the special value
+Alternatively, you can directly specify which checker and checker-qual jar files
+to use.  You must also set the Checker Framework version to the special value
 **`"dependencies"`**.  Put the following in your `build.gradle` file:
 
 ```groovy
@@ -86,7 +88,8 @@ dependencies {
 
 ### Which checkers to run
 
-You must specify which checkers to run using `checkerFramework.checkers` property.
+You must specify which checkers to run, using the `checkerFramework.checkers`
+property.
 
 For example, using Groovy syntax in a `build.gradle` file:
 
@@ -159,9 +162,9 @@ checkerFramework {
 }
 ```
 
-From the command line, add `-PskipCheckerFramework` to your gradle invocation. You can also pass 
-`-PskipCheckerFramework=false` to enable the Checker Framework even if the configuration has 
-`skipCheckerFramework = true`.
+From the command line, add `-PskipCheckerFramework` to your Gradle invocation.
+You can also pass `-PskipCheckerFramework=false` to enable the Checker Framework
+even if the configuration has `skipCheckerFramework = true`.
 
 ### Disabling the Checker Framework for tests
 
@@ -232,12 +235,12 @@ for different subprojects (for instance, if you want to run different checkers).
 
 ## Modules
 
-The Checker Framework inserts inferred annotations into bytecode even if none
-appear in source code, so you must make them known to the compiler even if you
-write no annotations in your code.  When running the plugin on a Java project
-that uses modules, you need to add annotations to the module path.
+When running the plugin on a Java project that uses modules, you need to add the
+annotations to the module path.  This is necessary even if you write no
+annotations in your code, because the Checker Framework inserts inferred
+annotations into the bytecode.
 
-Add following to your `module-info.java`:
+Add the following to your `module-info.java`:
 
 ```java
 requires org.checkerframework.checker.qual;
@@ -246,7 +249,7 @@ requires org.checkerframework.checker.qual;
 The addition of `requires` is typically enough.
 
 If it does not fix your compilation issues, you can additionally add the `checker-qual.jar`
-artifact (which only contains annotations) to the module path:
+artifact (which contains only annotations) to the module path:
 
 ```groovy
 checkerFramework {
@@ -264,7 +267,7 @@ the [Lombok Gradle Plugin](https://plugins.gradle.org/plugin/io.freefair.lombok)
 to delombok your source code before it is passed to the Checker Framework
 for type-checking. This plugin does not support any other use of Lombok.
 
-For the Checker Framework to work properly on delombok'd source code,
+For the Checker Framework to work properly on delomboked source code,
 you must include the following key in your project's `lombok.config` file:
 
 ```config
@@ -272,19 +275,19 @@ lombok.addLombokGeneratedAnnotation = true
 ```
 
 By default, Lombok suppresses all warnings in the code it generates. If you
-want to typecheck the code that Lombok generates, set the `addSuppressWarnings`
-to false:
+want to typecheck the code that Lombok generates, set `addSuppressWarnings` to
+false:
 
 ```config
 lombok.addSuppressWarnings = false
 ```
 
-Note that doing so will cause *all* tools (including Javac itself) to begin issuing
+Note that doing so will cause *all* tools (including javac itself) to begin issuing
 warnings in the code that Lombok generates.
 
-## Using a locally-built plugin
+## Using a locally built plugin
 
-To use a locally-modified version of this plugin:
+To use a locally modified version of this plugin:
 
 1. Publish the plugin to your local Maven repository:
 
@@ -292,8 +295,8 @@ To use a locally-modified version of this plugin:
    ./gradlew publishToMavenLocal
    ```
 
-2. Add the following to the `settings.gradle` file in
-   the Gradle project that you want to use the plugin:
+2. Add the following to the `settings.gradle` file of the Gradle project in
+   which you want to use the plugin:
 
    ```groovy
    pluginManagement {
@@ -328,7 +331,7 @@ you need to make some changes in order to use version 1.x.
      to configure interaction with Lombok.
 
    * **`skipVersionCheck`**: There is no longer a version check that might cause
-     "zip file too large" error.  Remove the `-PskipVersionCheck` command-line
+     a "zip file too large" error.  Remove the `-PskipVersionCheck` command-line
      argument and remove Gradle code like
 
      ```groovy
@@ -337,26 +340,26 @@ you need to make some changes in order to use version 1.x.
      }
      ```
 
-   * **`cfLocal`**: Set the version to `"local"` to use a locally-built version
+   * **`cfLocal`**: Set the version to `"local"` to use a locally built version
      of the Checker Framework.  Change command-line argument `-PcfLocal` to
      `-PcfVersion=local`.  (Note: The `cfLocal` functionality was not an
      official part of the plugin, but a number of projects use it.)
 
-4. If you want to use a non-standard Checker Framework jar file (such as that of
-    eisop) see [Checker Framework jar files](#checker-framework-jar-files).
+4. If you want to use a nonstandard Checker Framework jar file (such as that of
+   eisop), see [Checker Framework jar files](#checker-framework-jar-files).
 
 ## Troubleshooting
 
 ### ClassCastException for a javac class
 
 If you encounter a crash with a `ClassCastException` referencing some internal
-Javac class, disable incremental compilation in your build using the following
+javac class, disable incremental compilation in your build using the following
 code in your `checkerFramework` configuration block:
 
 ```groovy
-  checkerFramework {
-    incrementalize = false
-  }
+checkerFramework {
+  incrementalize = false
+}
 ```
 
 Background:  By default, the plugin assumes that all checkers are ["isolating
@@ -364,7 +367,7 @@ incremental annotation
 processors"](https://docs.gradle.org/current/userguide/java_plugin.html#sec:incremental_annotation_processing).
 This assumption speeds up builds by enabling incremental compilation.  Gradle's
 documentation warns that incremental compilation with the Checker Framework
-plugin (or any other plugin that uses internal Javac APIs) may crash, because
+plugin (or any other plugin that uses internal javac APIs) may crash, because
 Gradle wraps some of those APIs.
 
 ### Incompatibility with Error Prone 2.3.4 and earlier
@@ -374,9 +377,9 @@ you need to use Error Prone version 2.4.0 (released in May 2020) or later.
 
 <!--
 LocalWords:  JavaCompile gradle checkerframework checkerFramework toml lombok
-LocalWords:  PcfVersion buildfiles qual eisopVersion eisop1 checkerQual config
+LocalWords:  PcfVersion qual eisopVersion eisop1 checkerQual config delomboked
 LocalWords:  kotlin CheckerFrameworkExtension listOf extraJavacArgs Multi eisop
-LocalWords:  Werror Astubs testCompileJava excludeTests camelCase classfiles
+LocalWords:  Werror Astubs testCompileJava excludeTests camelCase
 LocalWords:  withType configureEach compileMainGeneratedDataTemplateJava
 LocalWords:  compileMainGeneratedRestJava subprojects allprojects mavenLocal
 LocalWords:  delombok addLombokGeneratedAnnotation addSuppressWarnings cfLocal
