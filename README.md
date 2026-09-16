@@ -208,36 +208,95 @@ The only configuration available on a per-task basis is `enabled`.
 
 In a project with subprojects, you should apply the plugin to each Java
 subproject (and to the top-level project, in the unlikely case that it is a Java
-project).  Here are two approaches.
+project).  Each subproject should configure the plugin itself, either directly
+or through a convention plugin.
 
-### Approach 1
+### Per-subproject configuration
 
-All Checker Framework configuration (the `checkerFramework` block and any
-`dependencies`) remains in the top-level `build.gradle` file.  Put it in a
-`subprojects` block (or an `allprojects` block in the unlikely case that the
-top-level project is a Java project).  For example, in Groovy syntax:
+Apply the plugin in the `build.gradle` file of each subproject, as if the
+subproject were a stand-alone project.  Use this if the subprojects need
+different configuration, such as different checkers.
+
+### A convention plugin
+
+If the subprojects share configuration, put it in a convention plugin rather
+than repeating it in each subproject.
+
+Write `buildSrc/build.gradle`:
 
 ```groovy
 plugins {
-  id("org.checkerframework").version("1.0.0")
+  id("groovy-gradle-plugin")
 }
 
-subprojects { subproject ->
+repositories {
+  gradlePluginPortal()
+}
+
+dependencies {
+  implementation("org.checkerframework:org.checkerframework.gradle.plugin:1.0.2")
+}
+```
+
+Write `buildSrc/src/main/groovy/my-checkerframework-conventions.gradle`:
+
+```groovy
+plugins {
+  id("org.checkerframework")
+}
+
+repositories {
+  mavenCentral()
+}
+
+checkerFramework {
+  checkers = ["org.checkerframework.checker.index.IndexChecker"]
+  version = "3.53.1"
+}
+```
+
+Then each subproject's `build.gradle` file contains:
+
+```groovy
+plugins {
+  id("java-library")
+  id("my-checkerframework-conventions")
+}
+```
+
+A subproject can override the conventions in its own `checkerFramework` block.
+Every project configures only itself, so a convention plugin works with the
+configuration cache and with [isolated projects](#isolated-projects).
+
+### Cross-project configuration
+
+You can instead configure all the subprojects from the top-level `build.gradle`
+file, in a `subprojects` block (or an `allprojects` block in the unlikely case
+that the top-level project is a Java project):
+
+```groovy
+plugins {
+  id("org.checkerframework").version("1.0.2") apply false
+}
+
+subprojects {
   apply plugin: "org.checkerframework"
 
   checkerFramework {
     checkers = ["org.checkerframework.checker.index.IndexChecker"]
-    version = "3.53.0"
+    version = "3.53.1"
   }
 }
 ```
 
-### Approach 2
+Avoid this in new builds.  A [convention plugin](#a-convention-plugin) shares
+configuration just as well, without these drawbacks:
 
-Apply the plugin in the `build.gradle` in each subproject as if it
-were a stand-alone project. You must do this if you require different configuration
-for different subprojects (for instance, if you want to run different checkers
-in different subprojects) or if you use Gradle's Isolated Projects feature.
+* Gradle's [isolated projects](#isolated-projects) feature forbids cross-project
+  configuration.
+* Gradle cannot configure the projects on demand or in parallel.
+* Giving one subproject different configuration requires testing the
+  subproject's name in the top-level build file.
 
 ### Project properties
 
@@ -261,10 +320,11 @@ Gradle's [isolated
 projects](https://docs.gradle.org/current/userguide/isolated_projects.html)
 feature forbids a project from reading or configuring another project.  The
 plugin is compatible with it, but the feature places one requirement on your
-build: use [Approach 2](#approach-2).  Approach 1 configures the subprojects
-from the top-level `build.gradle` file, which Gradle's Isolated Projects feature
-forbids: it reports "Project ':' cannot access 'Project.apply' functionality on
-subprojects".
+build: do not use [cross-project
+configuration](#cross-project-configuration).  Gradle forbids it, reporting
+"Project ':' cannot access 'Project.apply' functionality on subprojects".
+Configure each subproject in its own `build.gradle` file, directly or through a
+[convention plugin](#a-convention-plugin).
 
 ## Modules
 
@@ -415,6 +475,7 @@ LocalWords:  kotlin CheckerFrameworkExtension listOf extraJavacArgs Multi eisop
 LocalWords:  Werror Astubs testCompileJava excludeTests camelCase classfiles
 LocalWords:  withType configureEach compileMainGeneratedDataTemplateJava
 LocalWords:  compileMainGeneratedRestJava subprojects allprojects mavenLocal
+LocalWords:  buildSrc
 LocalWords:  delombok addLombokGeneratedAnnotation addSuppressWarnings cfLocal
 LocalWords:  publishToMavenLocal pluginManagement gradlePluginPortal
 LocalWords:  compileOnly testCompileOnly checkerFrameworkVersion PcfLocal
