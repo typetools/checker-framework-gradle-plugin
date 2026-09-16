@@ -22,7 +22,11 @@ above.  Although you must compile your project using at least Java 17, the
 compiled classfiles can be compatible with, and can run on, any version of Java.
 
 The plugin is compatible with Gradle's [configuration
-cache](https://docs.gradle.org/current/userguide/configuration_cache.html).
+cache](https://docs.gradle.org/current/userguide/configuration_cache.html) and
+with [isolated
+projects](https://docs.gradle.org/current/userguide/isolated_projects.html).  If
+you enable isolated projects, see [Multi-project
+builds](#multi-project-builds) for two requirements that it places on your build.
 
 ## Configuration
 
@@ -229,6 +233,26 @@ subprojects { subproject ->
 Apply the plugin in the `build.gradle` in each subproject as if it
 were a stand-alone project. You must do this if you require different configuration
 for different subprojects (for instance, if you want to run different checkers).
+
+### Isolated projects
+
+Gradle's [isolated
+projects](https://docs.gradle.org/current/userguide/isolated_projects.html)
+feature forbids a project from reading or configuring another project.  The
+plugin is compatible with it, but the feature places two requirements on your
+build.
+
+1. Use [Approach 2](#approach-2).  Approach 1 configures the subprojects from
+   the top-level `build.gradle` file, which the feature forbids no matter which
+   plugins the build uses: it reports "Project ':' cannot access 'Project.apply'
+   functionality on subprojects".
+
+2. Do not set the `cfVersion` or `skipCheckerFramework` project property in the
+   top-level `build.gradle` file via `ext`.  A subproject no longer inherits it,
+   because reading it is exactly the cross-project access that the feature
+   forbids.  Set the property in a `gradle.properties` file or on the command
+   line instead; either one works in every subproject.  Setting it via `ext` in
+   the subproject's own `build.gradle` file also works.
 
 ## Modules
 
