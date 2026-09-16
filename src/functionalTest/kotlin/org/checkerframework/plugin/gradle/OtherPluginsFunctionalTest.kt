@@ -20,8 +20,8 @@ class OtherPluginsFunctionalTest : KotlinPluginFunctionalTest() {
 
   @Test
   fun `test lombok 8 12 1`() {
-    val majorVersion = Runtime.version().feature()
-    if (majorVersion >= 25) {
+    // Lombok 8.12.1 does not support Java 25 and later.
+    if (testJavaVersion >= 25) {
       return
     }
     buildFile.appendText(
@@ -30,42 +30,6 @@ class OtherPluginsFunctionalTest : KotlinPluginFunctionalTest() {
           `java-library`
           id("org.checkerframework")
           id("io.freefair.lombok").version("8.12.1")
-      }
-      
-      configure<CheckerFrameworkExtension> {
-        version = "$TEST_CF_VERSION"
-        checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
-        extraJavacArgs = listOf("-Aversion")
-      }
-      """
-        .trimIndent()
-    )
-    // given
-    testProjectDir.writeLombokExample()
-
-    // when
-    val result = testProjectDir.buildWithArgsAndFail("build")
-
-    if (majorVersion >= 25) {
-
-      // then
-      assertThat(result.output)
-        .contains(
-          "User.java:9: error: [argument] incompatible argument for parameter y of FooBuilder.y."
-        )
-      assertThat(result.output)
-        .contains("Foo.java:12: error: [assignment] incompatible types in assignment.")
-    }
-  }
-
-  @Test
-  fun `test lombok latest`() {
-    buildFile.appendText(
-      """
-       plugins {
-          `java-library`
-          id("org.checkerframework")
-          id("io.freefair.lombok").version("9.2.0")
       }
       
       configure<CheckerFrameworkExtension> {
@@ -92,13 +56,78 @@ class OtherPluginsFunctionalTest : KotlinPluginFunctionalTest() {
   }
 
   @Test
+  fun `test lombok latest`() {
+    buildFile.appendText(
+      """
+       plugins {
+          `java-library`
+          id("org.checkerframework")
+          id("io.freefair.lombok").version("9.5.0")
+      }
+      
+      configure<CheckerFrameworkExtension> {
+        version = "$TEST_CF_VERSION"
+        checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+        extraJavacArgs = listOf("-Aversion")
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeLombokExample()
+
+    // when
+    val result = testProjectDir.buildWithArgsAndFail("build")
+
+    // then
+    assertThat(result.output)
+      .contains(
+        "User.java:9: error: [argument] incompatible argument for parameter y of FooBuilder.y."
+      )
+    assertThat(result.output)
+      .contains("Foo.java:12: error: [assignment] incompatible types in assignment.")
+  }
+
+  @Test
+  fun `test forking is visible at configuration time with lombok`() {
+    buildFile.appendText(
+      """
+       plugins {
+          `java-library`
+          id("org.checkerframework")
+          id("io.freefair.lombok").version("9.5.0")
+      }
+
+      configure<CheckerFrameworkExtension> {
+        version = "$TEST_CF_VERSION"
+        checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+      }
+      gradle.taskGraph.whenReady {
+        val checkerTask = tasks.named<JavaCompile>("checkDelombokCompileJava").get()
+        println("CHECK_DELOMBOK_FORK=" + checkerTask.options.isFork)
+      }
+      """
+        .trimIndent()
+    )
+
+    // when
+    val result = testProjectDir.buildWithArgs("help")
+
+    // then
+    // The checkDelombokCompileJava task's annotationProcessorPath is copied from the compileJava
+    // task after this plugin has configured the task, so requesting the fork while configuring
+    // every JavaCompile task is not enough for this task.
+    assertThat(result.output).contains("CHECK_DELOMBOK_FORK=true")
+  }
+
+  @Test
   fun `test disabling CF with lombok `() {
     buildFile.appendText(
       """
        plugins {
           `java-library`
           id("org.checkerframework")
-          id("io.freefair.lombok").version("9.2.0")
+          id("io.freefair.lombok").version("9.5.0")
       }
       
       configure<CheckerFrameworkExtension> {
@@ -126,9 +155,89 @@ class OtherPluginsFunctionalTest : KotlinPluginFunctionalTest() {
   }
 
   @Test
+  fun `test disabling CF for compileJava only, with lombok`() {
+    buildFile.appendText(
+      """
+       plugins {
+          `java-library`
+          id("org.checkerframework")
+          id("io.freefair.lombok").version("9.5.0")
+      }
+
+      configure<CheckerFrameworkExtension> {
+        version = "$TEST_CF_VERSION"
+        checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+        extraJavacArgs = listOf("-Aversion")
+      }
+      tasks.named<JavaCompile>("compileJava") {
+        val cfOptions =
+          (options as ExtensionAware).extensions.getByName("checkerFrameworkCompile")
+            as CheckerFrameworkCompileExtension
+        cfOptions.enabled.set(false)
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeLombokExample()
+
+    // when
+    val result = testProjectDir.buildWithArgsAndFail("build")
+
+    // then the Checker Framework does not run on compileJava, as the user asked. The Checker
+    // Framework still runs on the delomboked source code, which a separate checkDelombokCompileJava
+    // task compiles; that task has its own checkerFrameworkCompile.enabled option, which the user
+    // did not set.
+    assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(result.task(":checkDelombokCompileJava")?.outcome).isEqualTo(TaskOutcome.FAILED)
+    assertThat(result.output)
+      .contains(
+        "User.java:9: error: [argument] incompatible argument for parameter y of FooBuilder.y."
+      )
+    assertThat(result.output)
+      .contains("Foo.java:12: error: [assignment] incompatible types in assignment.")
+  }
+
+  @Test
+  fun `test disabling CF for the delombok task only`() {
+    buildFile.appendText(
+      """
+       plugins {
+          `java-library`
+          id("org.checkerframework")
+          id("io.freefair.lombok").version("9.5.0")
+      }
+
+      configure<CheckerFrameworkExtension> {
+        version = "$TEST_CF_VERSION"
+        checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+        extraJavacArgs = listOf("-Aversion")
+      }
+      tasks.named<JavaCompile>("checkDelombokCompileJava") {
+        val cfOptions =
+          (options as ExtensionAware).extensions.getByName("checkerFrameworkCompile")
+            as CheckerFrameworkCompileExtension
+        cfOptions.enabled.set(false)
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeLombokExample()
+
+    // when
+    val result = testProjectDir.buildWithArgs("checkDelombokCompileJava")
+
+    // then the task does not run at all, as the user asked: running the Checker Framework on the
+    // delomboked source code is its only purpose.
+    assertThat(result.task(":checkDelombokCompileJava")?.outcome).isEqualTo(TaskOutcome.SKIPPED)
+    assertThat(result.output).doesNotContain("error:")
+  }
+
+  @Test
   fun `test errorprone latest`() {
-    val majorVersion = Runtime.version().feature()
-    if (majorVersion < 21) {
+    // Error Prone 2.50.0 does not support Java versions before 21.
+    if (testJavaVersion < 21) {
       return
     }
     buildFile.delete()
@@ -141,12 +250,12 @@ class OtherPluginsFunctionalTest : KotlinPluginFunctionalTest() {
 
           plugins {
               id("java-library")
-              id("net.ltgt.errorprone") version "4.0.1"
+              id("net.ltgt.errorprone") version "5.1.1"
               id("org.checkerframework")
           }
 
           dependencies {
-              errorprone("com.google.errorprone:error_prone_core:2.46.0")
+              errorprone("com.google.errorprone:error_prone_core:2.50.0")
           }
 
           repositories {
@@ -170,16 +279,14 @@ class OtherPluginsFunctionalTest : KotlinPluginFunctionalTest() {
     // when
     val result = testProjectDir.buildWithArgsAndFail("build")
 
-    if (majorVersion < 21) {
-      // then
-      assertThat(result.output)
-        .contains(
-          "Demo.java:7: warning: [CollectionIncompatibleType] Argument 'i - 1' should not be passed to this method; its type int is not compatible with its collection's type argument Short"
-        )
-      assertThat(result.output)
-        .contains(
-          "Demo.java:8: error: [argument] incompatible argument for parameter arg0 of Set.add."
-        )
-    }
+    // then
+    assertThat(result.output)
+      .contains(
+        "Demo.java:7: warning: [CollectionIncompatibleType] Argument 'i - 1' should not be passed to this method; its type int is not compatible with its collection's type argument Short"
+      )
+    assertThat(result.output)
+      .contains(
+        "Demo.java:8: error: [argument] incompatible argument for parameter arg0 of Set.add."
+      )
   }
 }

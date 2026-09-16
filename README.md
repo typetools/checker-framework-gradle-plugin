@@ -21,6 +21,9 @@ The plugin supports Gradle versions 7.3 and above, which requires Java 17 and
 above.  Although you must compile your project using at least Java 17, the
 compiled classfiles can be compatible with, and can run on, any version of Java.
 
+The plugin is compatible with Gradle's [configuration
+cache](https://docs.gradle.org/current/userguide/configuration_cache.html).
+
 ## Configuration
 
 ### The Checker Framework version
@@ -29,11 +32,11 @@ You must specify which
 [version](https://github.com/typetools/checker-framework/releases) of the
 Checker Framework to use.
 
-* The recommended way is to modify two files.  Add this to `build.gradle`:
+* The Gradle developers recommend to modify two files.  Add this to `build.gradle`:
 
   ```groovy
   checkerFramework {
-    version = libs.checker.get().version
+    version = libs.checker.framework.get().version
   }
   ```
 
@@ -41,14 +44,14 @@ Checker Framework to use.
 
   ```toml
   [libraries]
-  checker = "org.checkerframework:checker:3.53.1"
+  checker-framework = "org.checkerframework:checker:4.2.3"
   ```
 
 * Alternately, you can edit just one file.  Add this to `build.gradle`:
 
   ```groovy
   checkerFramework {
-    version = "3.53.1"
+    version = "4.2.3"
   }
   ```
 
@@ -71,7 +74,7 @@ checkerFramework {
 
 ext {
     versions = [
-        eisopVersion: "3.42.0-eisop1",
+        eisopVersion: "3.49.5-eisop1",
     ]
 }
 
@@ -208,7 +211,7 @@ top-level project is a Java project).  For example, in Groovy syntax:
 
 ```groovy
 plugins {
-  id("org.checkerframework").version("1.0.0")
+  id("org.checkerframework").version("1.0.2")
 }
 
 subprojects { subproject ->
@@ -216,7 +219,7 @@ subprojects { subproject ->
 
   checkerFramework {
     checkers = ["org.checkerframework.checker.index.IndexChecker"]
-    version = "3.53.0"
+    version = "4.2.3"
   }
 }
 ```

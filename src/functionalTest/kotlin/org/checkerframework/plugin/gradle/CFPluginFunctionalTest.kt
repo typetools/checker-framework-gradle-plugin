@@ -6,7 +6,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 
-const val TEST_CF_VERSION = "3.53.0"
+const val TEST_CF_VERSION = "4.2.3"
 
 class CfPluginFunctionalTest : KotlinPluginFunctionalTest() {
   @BeforeEach
@@ -233,6 +233,37 @@ class CfPluginFunctionalTest : KotlinPluginFunctionalTest() {
     assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.FAILED)
   }
 
+  @Test
+  fun `test explicit processor added in a doFirst action`() {
+    buildFile.appendText(
+      """
+      configure<CheckerFrameworkExtension> {
+        version = "$TEST_CF_VERSION"
+        extraJavacArgs = listOf("-Anomsgtext","-Afilenames")
+        checkers = listOf("org.checkerframework.checker.tainting.TaintingChecker")
+      }
+      tasks.named<JavaCompile>("compileJava") {
+        doFirst {
+          options.compilerArgs.add("-processor")
+          options.compilerArgs.add("org.checkerframework.checker.nullness.NullnessChecker")
+        }
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeTaintingFailure()
+
+    // when
+    val result = testProjectDir.buildWithArgsAndFail("compileJava")
+
+    // then the checkers are added to the -processor argument, even though the user added that
+    // argument in a doFirst action rather than while configuring the task.
+    assertThat(result.output).contains("Note: NullnessChecker is type-checking")
+    assertThat(result.output).contains(TAINTING_FAILURE)
+    assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.FAILED)
+  }
+
   @Disabled("This works with Groovy but not Kotlin.")
   @Test
   fun `test disabling CF for some task`() {
@@ -405,12 +436,16 @@ class CfPluginFunctionalTest : KotlinPluginFunctionalTest() {
   @Test
   fun `test checkerFramework configuration`() {
     // This tests that the version of the Checker Framework in the checker framework configuration
-    // is used instead of the version in 'version'.
+    // is used instead of the version in 'version'.  Both versions are pinned rather than tracking
+    // TEST_CF_VERSION: 'version' supplies checker-qual, and a checker-qual older than checker.jar
+    // may lack qualifiers that checker.jar refers to, which fails for a reason unrelated to which
+    // version this test expects to win.
+    val configurationVersion = "3.53.0"
     val testVersion = "3.43.0"
     buildFile.appendText(
       """
       dependencies {
-        checkerFramework("org.checkerframework:checker:$TEST_CF_VERSION")
+        checkerFramework("org.checkerframework:checker:$configurationVersion")
       }
       configure<CheckerFrameworkExtension> {
         checkers = listOf("org.checkerframework.checker.index.IndexChecker")
@@ -429,7 +464,7 @@ class CfPluginFunctionalTest : KotlinPluginFunctionalTest() {
     // then
 
     assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
-    assertThat(result.output).contains("Note: Checker Framework $TEST_CF_VERSION")
+    assertThat(result.output).contains("Note: Checker Framework $configurationVersion")
   }
 
   @Test
@@ -485,5 +520,506 @@ class CfPluginFunctionalTest : KotlinPluginFunctionalTest() {
     assertThat(result.output).containsMatch("Note: TaintingChecker is type-checking .*Success.java")
     assertThat(result.output)
       .doesNotContainMatch("Note: TaintingChecker is type-checking .*Test.java")
+  }
+
+  @Test
+  fun `test excludeTests omits the dependencies from the test configurations`() {
+    buildFile.appendText(
+      """
+      configure<CheckerFrameworkExtension> {
+        version = "$TEST_CF_VERSION"
+        checkers = listOf("org.checkerframework.checker.tainting.TaintingChecker")
+        excludeTests = true
+      }
+      tasks.register("printCFConfigurations") {
+        // Only the annotation processor path is examined. checker-qual is on the test compile
+        // classpath no matter what `excludeTests` says, because testImplementation extends the
+        // main source set's implementation configuration.
+        val mainProcessorPath = configurations["annotationProcessor"]
+        val testProcessorPath = configurations["testAnnotationProcessor"]
+        val hasChecker = { c: Configuration ->
+          c.files.any { it.name.startsWith("checker-$TEST_CF_VERSION") }
+        }
+        doLast {
+          println("MAIN_HAS_CF=" + hasChecker(mainProcessorPath))
+          println("TEST_HAS_CF=" + hasChecker(testProcessorPath))
+        }
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgs("printCFConfigurations")
+
+    // then
+    assertThat(result.output).contains("MAIN_HAS_CF=true")
+    assertThat(result.output).contains("TEST_HAS_CF=false")
+  }
+
+  @Test
+  fun `test dependencies that the checkerFramework configuration inherits are used for tests`() {
+    buildFile.appendText(
+      """
+      val cfParent by configurations.creating
+      configurations["checkerFramework"].extendsFrom(cfParent)
+      dependencies {
+        cfParent("org.checkerframework:checker:$TEST_CF_VERSION")
+        checkerQual("org.checkerframework:checker-qual:$TEST_CF_VERSION")
+      }
+      configure<CheckerFrameworkExtension> {
+        // No dependency is added by default, so the only checker.jar is the inherited one.
+        version = "dependencies"
+        checkers = listOf("org.checkerframework.checker.tainting.TaintingChecker")
+        extraJavacArgs = listOf("-Afilenames")
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+    testProjectDir.writeTestClass()
+
+    // when
+    val result = testProjectDir.buildWithArgs("compileTestJava")
+
+    // then
+    assertThat(result.task(":compileTestJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(result.output).containsMatch("Note: TaintingChecker is type-checking .*Success.java")
+    assertThat(result.output).containsMatch("Note: TaintingChecker is type-checking .*Test.java")
+  }
+
+  @Test
+  fun `test dependency constraints on the checkerFramework configuration are used`() {
+    buildFile.appendText(
+      """
+      dependencies {
+        // The version comes from the constraint below, not from this declaration.
+        checkerFramework("org.checkerframework:checker")
+        checkerQual("org.checkerframework:checker-qual:$TEST_CF_VERSION")
+        constraints {
+          checkerFramework("org.checkerframework:checker") {
+            version { require("$TEST_CF_VERSION") }
+            because("the test pins the Checker Framework version")
+          }
+        }
+      }
+      configure<CheckerFrameworkExtension> {
+        version = "dependencies"
+        checkers = listOf("org.checkerframework.checker.tainting.TaintingChecker")
+        extraJavacArgs = listOf("-Afilenames")
+      }
+      tasks.register("printCheckerJars") {
+        val testProcessorPath = configurations["testAnnotationProcessor"]
+        doLast {
+          val checkerJars =
+            testProcessorPath.files.filter { it.name.startsWith("checker-$TEST_CF_VERSION") }
+          println("CHECKER_JARS=" + checkerJars.joinToString(",") { it.name })
+        }
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+    testProjectDir.writeTestClass()
+
+    // when
+    val result = testProjectDir.buildWithArgs("compileTestJava", "printCheckerJars")
+
+    // then
+    assertThat(result.task(":compileTestJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(result.output).containsMatch("Note: TaintingChecker is type-checking .*Success.java")
+    assertThat(result.output).containsMatch("Note: TaintingChecker is type-checking .*Test.java")
+    // The version that javac runs is the one that the constraint requires.
+    assertThat(result.output).containsMatch("CHECKER_JARS=checker-$TEST_CF_VERSION[-.]")
+  }
+
+  @Test
+  fun `test a dependency constraint on a project is used`() {
+    // A constraint on a project makes the project replace an external module with the same
+    // coordinates. Recreating the constraint from its group and name would make it an ordinary
+    // module constraint, which leaves the external module in place.
+    settingsFile.appendText(
+      """
+      include(":cfFork")
+      """
+        .trimIndent()
+    )
+    testProjectDir
+      .resolve("cfFork")
+      .apply { mkdirs() }
+      .resolve("build.gradle.kts")
+      .writeText(
+        """
+        plugins {
+          `java-library`
+        }
+        group = "org.checkerframework.test"
+        version = "1.0"
+        """
+          .trimIndent()
+      )
+    testProjectDir
+      .resolve("repo/org/checkerframework/test/cfFork/0.9")
+      .apply { mkdirs() }
+      .resolve("cfFork-0.9.pom")
+      .writeText(
+        """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <project xmlns="http://maven.apache.org/POM/4.0.0">
+          <modelVersion>4.0.0</modelVersion>
+          <groupId>org.checkerframework.test</groupId>
+          <artifactId>cfFork</artifactId>
+          <version>0.9</version>
+          <packaging>jar</packaging>
+        </project>
+        """
+          .trimIndent()
+      )
+    buildFile.appendText(
+      """
+      repositories {
+        maven { url = uri("repo") }
+      }
+      dependencies {
+        checkerFramework("org.checkerframework.test:cfFork:0.9")
+        constraints {
+          checkerFramework(project(":cfFork")) {
+            because("the test replaces the published fork with the local one")
+          }
+        }
+      }
+      configure<CheckerFrameworkExtension> {
+        version = "dependencies"
+        checkers = listOf("org.checkerframework.checker.tainting.TaintingChecker")
+      }
+      """
+        .trimIndent()
+    )
+
+    // when
+    val result =
+      testProjectDir.buildWithArgs(
+        "dependencyInsight",
+        "--configuration",
+        "annotationProcessor",
+        "--dependency",
+        "cfFork",
+      )
+
+    // then
+    assertThat(result.output).containsMatch("project '?:cfFork'?") // Gradle 9.6+ uses quotes.
+    assertThat(result.output).contains("the test replaces the published fork with the local one")
+  }
+
+  @Test
+  fun `test dependencies are added even if a classpath is resolved while the build script runs`() {
+    buildFile.appendText(
+      """
+      configure<CheckerFrameworkExtension> {
+        version = "$TEST_CF_VERSION"
+        checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+      }
+      // Resolve a classpath while the build script runs, before the plugin has finished
+      // configuring the project.
+      val resolvedEarly = configurations["annotationProcessor"].files.map { it.name }
+      tasks.register("printResolvedEarly") {
+        doLast { println("RESOLVED_EARLY=" + resolvedEarly.joinToString(",")) }
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgs("printResolvedEarly")
+
+    // then
+    assertThat(result.task(":printResolvedEarly")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(result.output).containsMatch("RESOLVED_EARLY=.*checker-$TEST_CF_VERSION")
+  }
+
+  @Test
+  fun `test enabling the Checker Framework after the task graph is computed fails`() {
+    buildFile.appendText(
+      """
+      configure<CheckerFrameworkExtension> {
+        version = "$TEST_CF_VERSION"
+        checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+        skipCheckerFramework = true
+      }
+      // Too late: the writeCheckerManifest task is not in the task graph, so no checker would run.
+      gradle.taskGraph.whenReady {
+        the<CheckerFrameworkExtension>().skipCheckerFramework = false
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgsAndFail("compileJava")
+
+    // then
+    assertThat(result.output)
+      .contains(
+        "The Checker Framework was enabled on :compileJava too late for it to run: " +
+          "the manifest that makes javac discover the checkers was not written. " +
+          "Enable the Checker Framework while the build is being configured, no later than when Gradle builds the task graph."
+      )
+  }
+
+  @Test
+  fun `test exclude rules that the checkerFramework configuration inherits are used`() {
+    buildFile.appendText(
+      """
+      val cfParent by configurations.creating {
+        exclude(mapOf("group" to "org.checkerframework", "module" to "checker-qual"))
+      }
+      configurations["checkerFramework"].extendsFrom(cfParent)
+      configure<CheckerFrameworkExtension> {
+        version = "$TEST_CF_VERSION"
+        checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+      }
+      tasks.register("printCFConfigurations") {
+        val mainProcessorPath = configurations["annotationProcessor"]
+        val testProcessorPath = configurations["testAnnotationProcessor"]
+        val hasCheckerQual = { c: Configuration ->
+          c.files.any { it.name.startsWith("checker-qual") }
+        }
+        doLast {
+          println("MAIN_HAS_CHECKER_QUAL=" + hasCheckerQual(mainProcessorPath))
+          println("TEST_HAS_CHECKER_QUAL=" + hasCheckerQual(testProcessorPath))
+        }
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgs("printCFConfigurations")
+
+    // then
+    // checker.jar depends on checker-qual.jar, so the exclude rule is observable only if the
+    // annotation processor paths honor the rule that the checkerFramework configuration inherits.
+    assertThat(result.output).contains("MAIN_HAS_CHECKER_QUAL=false")
+    assertThat(result.output).contains("TEST_HAS_CHECKER_QUAL=false")
+  }
+
+  @Test
+  fun `test cfVersion extra property`() {
+    buildFile.appendText(
+      """
+      extra["cfVersion"] = "$TEST_CF_VERSION"
+      configure<CheckerFrameworkExtension> {
+        checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+        extraJavacArgs = listOf("-Aversion")
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgs("compileJava")
+
+    // then
+    assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(result.output).contains("Note: Checker Framework $TEST_CF_VERSION")
+  }
+
+  @Test
+  fun `test cfVersion extra property with configuration resolved by build script`() {
+    buildFile.appendText(
+      """
+      extra["cfVersion"] = "$TEST_CF_VERSION"
+      configurations.getByName("annotationProcessor").files
+      configure<CheckerFrameworkExtension> {
+        checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+        extraJavacArgs = listOf("-Aversion")
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgs("compileJava")
+
+    // then
+    assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(result.output).contains("Note: Checker Framework $TEST_CF_VERSION")
+  }
+
+  @Test
+  fun `test skipCheckerFramework extra property`() {
+    buildFile.appendText(
+      """
+      extra["skipCheckerFramework"] = "true"
+      configure<CheckerFrameworkExtension> {
+        version = "$TEST_CF_VERSION"
+        checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+        extraJavacArgs = listOf("-Aversion")
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgs("compileJava")
+
+    // then
+    assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(result.output).doesNotContain("Note: Checker Framework $TEST_CF_VERSION")
+  }
+
+  @Test
+  fun `test writeCheckerManifest with no checkers`() {
+    buildFile.appendText(
+      """
+      configure<CheckerFrameworkExtension> {
+        version = "$TEST_CF_VERSION"
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgs("writeCheckerManifest")
+
+    // then
+    assertThat(result.task(":writeCheckerManifest")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+  }
+
+  @Test
+  fun `test incrementalize false removes the incremental manifest`() {
+    val buildFileText = buildFile.readText()
+    buildFile.writeText(
+      buildFileText +
+        """
+        configure<CheckerFrameworkExtension> {
+          version = "$TEST_CF_VERSION"
+          checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+        }
+        """
+          .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+    val incrementalManifest =
+      testProjectDir.resolve(
+        "build/checkerframework/META-INF/gradle/incremental.annotation.processors"
+      )
+
+    // when
+    testProjectDir.buildWithArgs("compileJava")
+
+    // then
+    assertThat(incrementalManifest.exists()).isTrue()
+
+    // when incremental annotation processing is turned off
+    buildFile.writeText(
+      buildFileText +
+        """
+        configure<CheckerFrameworkExtension> {
+          version = "$TEST_CF_VERSION"
+          checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+          incrementalize = false
+        }
+        """
+          .trimIndent()
+    )
+    testProjectDir.buildWithArgs("compileJava")
+
+    // then
+    assertThat(incrementalManifest.exists()).isFalse()
+  }
+
+  /**
+   * A project property that is set to a null value is a build script error, and is diagnosed the
+   * same way for every project property that this plugin reads.
+   */
+  @Test
+  fun `test project property set to a null value`() {
+    for (propertyName in listOf("cfVersion", "skipCheckerFramework")) {
+      val buildFileText = buildFile.readText()
+      buildFile.writeText(
+        buildFileText +
+          """
+          extra["$propertyName"] = null
+          configure<CheckerFrameworkExtension> {
+            version = "$TEST_CF_VERSION"
+            checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+          }
+          """
+            .trimIndent()
+      )
+      // given
+      testProjectDir.writeEmptyClass()
+
+      // when
+      val result = testProjectDir.buildWithArgsAndFail("compileJava")
+
+      // then
+      assertThat(result.output).contains("$propertyName property is set but has a null value")
+
+      buildFile.writeText(buildFileText)
+    }
+  }
+
+  /**
+   * A task whose annotationProcessorPath is null does no annotation processing, so no checker runs
+   * on it and it must not fork. The build script applies this plugin after setting the path to
+   * null, so that the path is already null when this plugin configures the task.
+   */
+  @Test
+  fun `test no forking when annotation processing is disabled`() {
+    buildFile.writeText(
+      """
+      import org.checkerframework.plugin.gradle.*
+
+      plugins {
+          `java-library`
+          id("org.checkerframework") apply false
+      }
+      repositories {
+          mavenCentral()
+      }
+      tasks.withType<JavaCompile>().configureEach {
+          options.annotationProcessorPath = null
+      }
+      apply(plugin = "org.checkerframework")
+      configure<CheckerFrameworkExtension> {
+        version = "$TEST_CF_VERSION"
+        checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+      }
+      tasks.named<JavaCompile>("compileJava") {
+        doLast { logger.lifecycle("compileJava isFork = " + options.isFork) }
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgs("compileJava")
+
+    // then
+    assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(result.output).contains("compileJava isFork = false")
   }
 }

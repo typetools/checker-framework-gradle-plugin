@@ -6,8 +6,32 @@ import org.gradle.testkit.runner.GradleRunner
 import org.gradle.util.GradleVersion
 
 val testJavaHome = System.getProperty("test.java-home", System.getProperty("java.home"))
+
+/**
+ * The major version of [testJavaHome], the Java version that runs the builds that the tests launch
+ * and therefore compiles the code that the tests check. It is not necessarily the version that runs
+ * the tests themselves, which is the version of this build's Kotlin toolchain.
+ */
+val testJavaVersion: Int =
+  System.getProperty("test.java-version")?.toInt() ?: Runtime.version().feature()
 val testGradleVersion =
   System.getProperty("test.gradle-version")?.let(GradleVersion::version) ?: GradleVersion.current()
+
+/**
+ * The oldest Gradle version whose Kotlin DSL can use this plugin. This plugin is compiled by the
+ * Kotlin compiler that the build's own Gradle embeds, and an older Gradle's Kotlin DSL cannot read
+ * that compiler's metadata: it fails with "Protocol message contained an invalid tag (zero)" while
+ * configuring the project. A build script written in Groovy is unaffected, so the plugin still
+ * supports the Gradle version that [CheckerFrameworkPlugin.apply] requires.
+ */
+val minimumKotlinDslGradleVersion: GradleVersion = GradleVersion.version("8.2.1")
+
+/**
+ * The oldest Gradle version that the `io.freefair.lombok` plugin supports. Applying it to an older
+ * Gradle fails with "Configuration with name 'mainSourceElements' not found", because the
+ * `mainSourceElements` configuration was introduced in Gradle 7.4.
+ */
+val minimumLombokGradleVersion: GradleVersion = GradleVersion.version("7.4")
 
 fun File.writeEmptyClass() {
   File(this.resolve("src/main/java/test").apply { mkdirs() }, "Success.java").apply {
@@ -60,7 +84,8 @@ fun File.writeNullnessFailure() {
   }
 }
 
-const val TAINTING_FAILURE = "Failure2Checkers.java:8: error: (argument)"
+/** The Tainting Checker's error, in the "-Anomsgtext" format that omits the message text. */
+const val TAINTING_FAILURE = "Failure2Checkers.java:8: error: [argument]"
 
 fun File.writeTaintingFailure() {
   File(this.resolve("src/main/java/test").apply { mkdirs() }, "Failure2Checkers.java").apply {
@@ -148,6 +173,30 @@ fun File.writeLombokExample() {
   }
 }
 
+/** Writes a class that uses lombok and that the Nullness Checker issues no warning about. */
+fun File.writeCorrectLombokExample() {
+  File(this.resolve("src/main/java/lib").apply { mkdirs() }, "Correct.java").apply {
+    createNewFile()
+    writeText(
+      """
+      package lib;
+
+      import lombok.Getter;
+      import org.checkerframework.checker.nullness.qual.Nullable;
+
+      public class Correct {
+        @Getter private @Nullable Integer x;
+
+        void demo() {
+          x = null;
+        }
+      }
+      """
+        .trimIndent()
+    )
+  }
+}
+
 fun File.writeErrorProneExample() {
   File(this.resolve("src/main/java/com/example").apply { mkdirs() }, "Demo.java").apply {
     createNewFile()
@@ -168,6 +217,9 @@ fun File.writeErrorProneExample() {
     )
   }
 }
+
+const val CONFIGURATION_CACHE_STORED = "Configuration cache entry stored."
+const val CONFIGURATION_CACHE_REUSED = "Configuration cache entry reused."
 
 fun File.buildWithArgs(vararg tasks: String): BuildResult = prepareBuild(*tasks).build()
 
