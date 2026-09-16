@@ -247,12 +247,16 @@ build.
    plugins the build uses: it reports "Project ':' cannot access 'Project.apply'
    functionality on subprojects".
 
-2. Do not set the `cfVersion` or `skipCheckerFramework` project property in the
-   top-level `build.gradle` file via `ext`.  A subproject no longer inherits it,
-   because reading it is exactly the cross-project access that the feature
-   forbids.  Set the property in a `gradle.properties` file or on the command
-   line instead; either one works in every subproject.  Setting it via `ext` in
-   the subproject's own `build.gradle` file also works.
+2. Do not set the `cfVersion` or `skipCheckerFramework` project property in a
+   way that only an ancestor project sees: via `ext` in the ancestor's
+   `build.gradle` file, or in a `gradle.properties` file in the directory of an
+   ancestor other than the root project.  A subproject no longer inherits such a
+   setting, because reading it is exactly the cross-project access that the
+   feature forbids.  Set the property in the *root* project's
+   `gradle.properties` file or on the command line instead; either one works in
+   every subproject.  Setting it via `ext` in the subproject's own
+   `build.gradle` file, or in a `gradle.properties` file in the subproject's own
+   directory, also works for that subproject.
 
 ## Modules
 

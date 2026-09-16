@@ -3,6 +3,7 @@ package org.checkerframework.plugin.gradle
 import com.google.common.truth.Truth.assertThat
 import java.io.File
 import java.util.Properties
+import org.gradle.testkit.runner.BuildResult
 import org.gradle.testkit.runner.TaskOutcome
 import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.BeforeEach
@@ -75,13 +76,30 @@ class IsolatedProjectsFunctionalTest {
     dir.writeEmptyClass()
   }
 
+  /**
+   * Asserts that the isolated projects feature was enabled during the build and that the build did
+   * not violate it.
+   *
+   * Without the first assertion, the second one would be vacuous in a Gradle version that does not
+   * recognize the incubating `org.gradle.unsafe.isolated-projects` property, because Gradle
+   * silently ignores an unrecognized `org.gradle.*` property: every test would run an ordinary
+   * multi-project build, in which no violation can occur, and would keep passing even if the plugin
+   * regressed.
+   *
+   * @param result the result of a build of [testProjectDir]
+   */
+  private fun assertIsolatedProjects(result: BuildResult) {
+    assertThat(result.output).containsMatch(ISOLATED_PROJECTS_ENABLED)
+    assertThat(result.output).doesNotContain(CANNOT_LOOK_UP_IN_PARENT)
+  }
+
   @Test
   fun `test isolated projects in a multi-project build`() {
     // when
     val result = testProjectDir.buildWithArgs("compileJava", "--configuration-cache")
 
     // then the build does not violate the isolated projects feature
-    assertThat(result.output).doesNotContain(CANNOT_LOOK_UP_IN_PARENT)
+    assertIsolatedProjects(result)
     SUBPROJECTS.forEach {
       assertThat(result.task(":$it:compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
     }
@@ -93,6 +111,7 @@ class IsolatedProjectsFunctionalTest {
     val secondResult = testProjectDir.buildWithArgs("compileJava", "--configuration-cache")
 
     // then
+    assertIsolatedProjects(secondResult)
     assertThat(secondResult.output).contains(CONFIGURATION_CACHE_REUSED)
     SUBPROJECTS.forEach {
       assertThat(secondResult.task(":$it:compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
@@ -110,7 +129,7 @@ class IsolatedProjectsFunctionalTest {
       )
 
     // then the command-line property overrides the version, without a cross-project lookup
-    assertThat(result.output).doesNotContain(CANNOT_LOOK_UP_IN_PARENT)
+    assertIsolatedProjects(result)
     assertThat(result.output).contains("Note: Checker Framework $OTHER_TEST_CF_VERSION")
     assertThat(result.output).doesNotContain("Note: Checker Framework $TEST_CF_VERSION")
   }
@@ -122,7 +141,7 @@ class IsolatedProjectsFunctionalTest {
       testProjectDir.buildWithArgs("compileJava", "--configuration-cache", "-PskipCheckerFramework")
 
     // then no checker runs, and reading the property does not look in the parent project
-    assertThat(result.output).doesNotContain(CANNOT_LOOK_UP_IN_PARENT)
+    assertIsolatedProjects(result)
     assertThat(result.output).doesNotContain("Note: Checker Framework")
     SUBPROJECTS.forEach {
       assertThat(result.task(":$it:compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
@@ -141,7 +160,7 @@ class IsolatedProjectsFunctionalTest {
     val result = testProjectDir.buildWithArgs("compileJava", "--configuration-cache")
 
     // then only that subproject uses the overriding version
-    assertThat(result.output).doesNotContain(CANNOT_LOOK_UP_IN_PARENT)
+    assertIsolatedProjects(result)
     assertThat(result.output).contains("Note: Checker Framework $OTHER_TEST_CF_VERSION")
     assertThat(result.output).contains("Note: Checker Framework $TEST_CF_VERSION")
   }
@@ -158,7 +177,7 @@ class IsolatedProjectsFunctionalTest {
     val result = testProjectDir.buildWithArgs("compileJava", "--configuration-cache")
 
     // then the extra property is read, without a cross-project lookup
-    assertThat(result.output).doesNotContain(CANNOT_LOOK_UP_IN_PARENT)
+    assertIsolatedProjects(result)
     assertThat(result.output).contains("Note: Checker Framework $OTHER_TEST_CF_VERSION")
     assertThat(result.output).contains("Note: Checker Framework $TEST_CF_VERSION")
   }
@@ -178,5 +197,13 @@ class IsolatedProjectsFunctionalTest {
      * is the violation that using [Project.findProperty] to read a project property causes.
      */
     private const val CANNOT_LOOK_UP_IN_PARENT = "cannot dynamically look up a property"
+
+    /**
+     * A regex matching the message that Gradle issues when the isolated projects feature is
+     * enabled. Gradle 9.2.1 and earlier write the feature's name as "Isolated projects", and a
+     * later version capitalizes it as "Isolated Projects".
+     */
+    private const val ISOLATED_PROJECTS_ENABLED =
+      """Isolated [Pp]rojects is an incubating feature\."""
   }
 }

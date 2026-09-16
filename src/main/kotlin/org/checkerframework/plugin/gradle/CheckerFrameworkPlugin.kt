@@ -509,13 +509,18 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
    *
    * ExtraPropertiesExtension has none of those three problems: it is not a provider, and Gradle
    * populates it with the project properties that come from the command line, from a
-   * gradle.properties file in either the root or this project's directory, from a
-   * -Dorg.gradle.project.* system property, and from this project's `ext`.
+   * gradle.properties file in the root project's directory, in this project's directory, or in
+   * $GRADLE_USER_HOME, from a -Dorg.gradle.project.* system property, from an ORG_GRADLE_PROJECT_*
+   * environment variable, and from this project's `ext`.
    *
-   * The one property that findProperty reads and this does not is an extra property that a parent
-   * project's build script sets via `ext`, which a subproject no longer inherits. Reading it is
-   * exactly the cross-project access that isolated projects forbids, so a build that sets a plugin
-   * property that way must set it in gradle.properties or on the command line instead.
+   * What findProperty reads and this does not is a property that only an ancestor project sees: one
+   * that the ancestor's build script sets via `ext`, or one in a gradle.properties file in the
+   * directory of an ancestor other than the root project. (The root project's gradle.properties
+   * file is merged into every project's extra properties, but a non-root project's is not merged
+   * into its subprojects'.) A subproject no longer inherits either kind of setting, because reading
+   * it is exactly the cross-project access that isolated projects forbids, so a build that sets a
+   * plugin property that way must set it in the root project's gradle.properties file or on the
+   * command line instead.
    *
    * @param project the project whose property to read
    * @param propertyName the name of the property to read
