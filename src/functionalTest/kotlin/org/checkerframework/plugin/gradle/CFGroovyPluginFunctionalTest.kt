@@ -622,7 +622,7 @@ class CFGroovyPluginFunctionalTest : GroovyPluginFunctionalTest() {
       """
       plugins {
           id("java-library")
-          id("io.freefair.lombok") version "9.2.0"
+          id("io.freefair.lombok") version "9.5.0"
           id("org.checkerframework") apply false
       }
       repositories {
@@ -660,7 +660,7 @@ class CFGroovyPluginFunctionalTest : GroovyPluginFunctionalTest() {
       """
       plugins {
           id("java-library")
-          id("io.freefair.lombok") version "9.2.0"
+          id("io.freefair.lombok") version "9.5.0"
           id("org.checkerframework") apply false
       }
       repositories {
