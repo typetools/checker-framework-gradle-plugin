@@ -232,7 +232,8 @@ subprojects { subproject ->
 
 Apply the plugin in the `build.gradle` in each subproject as if it
 were a stand-alone project. You must do this if you require different configuration
-for different subprojects (for instance, if you want to run different checkers).
+for different subprojects (for instance, if you want to run different checkers
+in different subprojects).
 
 ### Isolated projects
 
@@ -243,20 +244,18 @@ plugin is compatible with it, but the feature places two requirements on your
 build.
 
 1. Use [Approach 2](#approach-2).  Approach 1 configures the subprojects from
-   the top-level `build.gradle` file, which the feature forbids no matter which
-   plugins the build uses: it reports "Project ':' cannot access 'Project.apply'
-   functionality on subprojects".
+   the top-level `build.gradle` file, which Gradle's Isolated Projects feature
+   forbids no matter which plugins the build uses: it reports "Project ':'
+   cannot access 'Project.apply' functionality on subprojects".
 
-2. Do not set the `cfVersion` or `skipCheckerFramework` project property in a
-   way that only an ancestor project sees: via `ext` in the ancestor's
+2. Set the `cfVersion` or `skipCheckerFramework` project property in the *root*
+   project's `gradle.properties` file or on the command line.  Do not set them
+   in a way that only an ancestor project sees: via `ext` in the ancestor's
    `build.gradle` file, or in a `gradle.properties` file in the directory of an
-   ancestor other than the root project.  A subproject no longer inherits such a
-   setting, because reading it is exactly the cross-project access that the
-   feature forbids.  Set the property in the *root* project's
-   `gradle.properties` file or on the command line instead; either one works in
-   every subproject.  Setting it via `ext` in the subproject's own
-   `build.gradle` file, or in a `gradle.properties` file in the subproject's own
-   directory, also works for that subproject.
+   ancestor other than the root project.  Setting it via `ext` in the
+   subproject's own `build.gradle` file, or in a `gradle.properties` file in the
+   subproject's own directory, also works for a setting specific to that
+   subproject.
 
 ## Modules
 
