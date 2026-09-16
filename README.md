@@ -270,11 +270,13 @@ configuration cache and with [isolated projects](#isolated-projects).
 
 ### Cross-project configuration
 
-You can instead configure all the subprojects from the top-level `build.gradle`
-file, in a `subprojects` block (or an `allprojects` block in the unlikely case
-that the top-level project is a Java project):
+It is possible, but discouraged, to configure all the subprojects from the
+top-level `build.gradle` file, in a `subprojects` block (or an `allprojects`
+block in the unlikely case that the top-level project is a Java project):
 
 ```groovy
+// Don't do this.
+
 plugins {
   id("org.checkerframework").version("1.0.2") apply false
 }
@@ -289,14 +291,8 @@ subprojects {
 }
 ```
 
-Avoid this in new builds.  A [convention plugin](#a-convention-plugin) shares
-configuration just as well, without these drawbacks:
-
-* Gradle's [isolated projects](#isolated-projects) feature forbids cross-project
-  configuration.
-* Gradle cannot configure the projects on demand or in parallel.
-* Giving one subproject different configuration requires testing the
-  subproject's name in the top-level build file.
+A [convention plugin](#a-convention-plugin) is a better way to share
+configuration than this discouraged pattern.
 
 ### Project properties
 
