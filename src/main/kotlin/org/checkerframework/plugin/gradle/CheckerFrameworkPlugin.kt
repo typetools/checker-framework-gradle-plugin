@@ -17,6 +17,7 @@ import org.gradle.api.file.Directory
 import org.gradle.api.file.FileCollection
 import org.gradle.api.model.ObjectFactory
 import org.gradle.api.plugins.ExtensionAware
+import org.gradle.api.plugins.ExtraPropertiesExtension
 import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.plugins.JavaPluginExtension
 import org.gradle.api.provider.ListProperty
@@ -486,8 +487,16 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
    * Returns the value of the given project property, or null if the property is not set. Throws an
    * exception if the property is set to a null value.
    *
-   * [Project.findProperty] is used rather than
-   * [org.gradle.api.provider.ProviderFactory.gradleProperty] for three reasons:
+   * [ExtraPropertiesExtension] is used rather than [Project.findProperty], which reads the same
+   * property but also, when the property is not set on this project, falls back to a parent
+   * project. That fallback is cross-project model access, which the isolated projects feature
+   * forbids: "Project ':a' cannot dynamically look up a property in the parent project ':'". The
+   * fallback happens on every lookup of a property that is not set, so findProperty makes the
+   * plugin incompatible with isolated projects in every multi-project build, even one that sets
+   * none of the plugin's project properties.
+   *
+   * [org.gradle.api.provider.ProviderFactory.gradleProperty] is also isolated-projects-compatible,
+   * but it reads a different set of properties, for three reasons:
    * * gradleProperty does not see extra properties, such as those that a build script sets via
    *   `ext`.
    * * gradleProperty does not see a gradle.properties file in a subproject directory:
@@ -498,19 +507,26 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
    *   'forUseAtConfigurationTime()' instead." That method was deprecated in Gradle 7.4 and removed
    *   in Gradle 8.0, so this plugin cannot call it.
    *
-   * The workaround in https://github.com/gradle/gradle/issues/23572#issuecomment-2563603855 makes
-   * gradleProperty usable despite the second problem, but it reimplements property lookup and does
-   * not address the other two problems, so findProperty remains simpler and more correct here.
+   * ExtraPropertiesExtension has none of those three problems: it is not a provider, and Gradle
+   * populates it with the project properties that come from the command line, from a
+   * gradle.properties file in either the root or this project's directory, from a
+   * -Dorg.gradle.project.* system property, and from this project's `ext`.
+   *
+   * The one property that findProperty reads and this does not is an extra property that a parent
+   * project's build script sets via `ext`, which a subproject no longer inherits. Reading it is
+   * exactly the cross-project access that isolated projects forbids, so a build that sets a plugin
+   * property that way must set it in gradle.properties or on the command line instead.
    *
    * @param project the project whose property to read
    * @param propertyName the name of the property to read
    */
   private fun projectProperty(project: Project, propertyName: String): String? {
-    if (!project.hasProperty(propertyName)) {
+    val extraProperties = project.extensions.extraProperties
+    if (!extraProperties.has(propertyName)) {
       return null
     }
     val value =
-      project.findProperty(propertyName)
+      extraProperties.get(propertyName)
         ?: throw IllegalStateException("$propertyName property is set but has a null value")
     return value.toString()
   }
