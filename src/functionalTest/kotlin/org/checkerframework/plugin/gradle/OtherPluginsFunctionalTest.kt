@@ -62,7 +62,7 @@ class OtherPluginsFunctionalTest : KotlinPluginFunctionalTest() {
        plugins {
           `java-library`
           id("org.checkerframework")
-          id("io.freefair.lombok").version("9.2.0")
+          id("io.freefair.lombok").version("9.5.0")
       }
       
       configure<CheckerFrameworkExtension> {
@@ -95,7 +95,7 @@ class OtherPluginsFunctionalTest : KotlinPluginFunctionalTest() {
        plugins {
           `java-library`
           id("org.checkerframework")
-          id("io.freefair.lombok").version("9.2.0")
+          id("io.freefair.lombok").version("9.5.0")
       }
 
       configure<CheckerFrameworkExtension> {
@@ -127,7 +127,7 @@ class OtherPluginsFunctionalTest : KotlinPluginFunctionalTest() {
        plugins {
           `java-library`
           id("org.checkerframework")
-          id("io.freefair.lombok").version("9.2.0")
+          id("io.freefair.lombok").version("9.5.0")
       }
       
       configure<CheckerFrameworkExtension> {
@@ -161,7 +161,7 @@ class OtherPluginsFunctionalTest : KotlinPluginFunctionalTest() {
        plugins {
           `java-library`
           id("org.checkerframework")
-          id("io.freefair.lombok").version("9.2.0")
+          id("io.freefair.lombok").version("9.5.0")
       }
 
       configure<CheckerFrameworkExtension> {
@@ -205,7 +205,7 @@ class OtherPluginsFunctionalTest : KotlinPluginFunctionalTest() {
        plugins {
           `java-library`
           id("org.checkerframework")
-          id("io.freefair.lombok").version("9.2.0")
+          id("io.freefair.lombok").version("9.5.0")
       }
 
       configure<CheckerFrameworkExtension> {
@@ -236,7 +236,7 @@ class OtherPluginsFunctionalTest : KotlinPluginFunctionalTest() {
 
   @Test
   fun `test errorprone latest`() {
-    // Error Prone 4.0.1 does not support Java versions before 21.
+    // Error Prone 2.50.0 does not support Java versions before 21.
     if (testJavaVersion < 21) {
       return
     }
@@ -250,12 +250,12 @@ class OtherPluginsFunctionalTest : KotlinPluginFunctionalTest() {
 
           plugins {
               id("java-library")
-              id("net.ltgt.errorprone") version "4.0.1"
+              id("net.ltgt.errorprone") version "5.1.1"
               id("org.checkerframework")
           }
 
           dependencies {
-              errorprone("com.google.errorprone:error_prone_core:2.46.0")
+              errorprone("com.google.errorprone:error_prone_core:2.50.0")
           }
 
           repositories {
@@ -263,11 +263,6 @@ class OtherPluginsFunctionalTest : KotlinPluginFunctionalTest() {
           }
           tasks.withType<JavaCompile>().configureEach {
               options.errorprone.warn("CollectionIncompatibleType")
-              // Error Prone requires these javac arguments, which its Gradle plugin does not add.
-              options.compilerArgs.addAll(
-                  listOf(
-                      "--should-stop=ifError=FLOW",
-                      "-XDaddTypeAnnotationsToSymbol=true"))
           }
 
           configure<CheckerFrameworkExtension> {
