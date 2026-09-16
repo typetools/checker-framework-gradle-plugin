@@ -6,8 +6,10 @@ The plugin is compatible with Gradle's [isolated
 projects](https://docs.gradle.org/current/userguide/isolated_projects.html)
 feature.
 
-Incompatible change: a subproject no longer inherits the `cfVersion` or
-`skipCheckerFramework` project property from an ancestor project.  Instead, you
+Incompatible change: a subproject no longer inherits a `cfVersion` or
+`skipCheckerFramework` project property that only an ancestor project sees: one
+set via `ext` in the ancestor's `build.gradle` file, or in a `gradle.properties`
+file in the directory of an ancestor other than the root project.  Instead, you
 should set it in the *root* project's `gradle.properties` file or on the command
 line, either of which works in every subproject.  If you set it via `ext` in the
 subproject's own `build.gradle` file, or in a `gradle.properties` file in the

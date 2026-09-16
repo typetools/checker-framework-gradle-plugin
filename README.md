@@ -26,7 +26,7 @@ cache](https://docs.gradle.org/current/userguide/configuration_cache.html) and
 with [isolated
 projects](https://docs.gradle.org/current/userguide/isolated_projects.html).  If
 you enable isolated projects, see [Multi-project
-builds](#multi-project-builds) for two requirements that it places on your build.
+builds](#multi-project-builds) for a requirement that it places on your build.
 
 ## Configuration
 
@@ -63,7 +63,9 @@ The special value **"local"** means to use a locally-built version of the
 Checker Framework, found at environment variable `$CHECKERFRAMEWORK`.
 
 The command-line argument **`-PcfVersion=...`** (where "..." is a version number
-or "local") overrides settings in gradle buildfiles.
+or "local") overrides settings in gradle buildfiles.  You can also set the
+`cfVersion` project property in a `gradle.properties` file or via `ext`; in a
+multi-project build, see [Project properties](#project-properties).
 
 #### Checker Framework jar files
 
@@ -165,7 +167,9 @@ checkerFramework {
 
 From the command line, add `-PskipCheckerFramework` to your gradle invocation. You can also pass 
 `-PskipCheckerFramework=false` to enable the Checker Framework even if the configuration has 
-`skipCheckerFramework = true`.
+`skipCheckerFramework = true`.  You can also set the `skipCheckerFramework`
+project property in a `gradle.properties` file or via `ext`; in a multi-project
+build, see [Project properties](#project-properties).
 
 ### Disabling the Checker Framework for tests
 
@@ -233,29 +237,34 @@ subprojects { subproject ->
 Apply the plugin in the `build.gradle` in each subproject as if it
 were a stand-alone project. You must do this if you require different configuration
 for different subprojects (for instance, if you want to run different checkers
-in different subprojects).
+in different subprojects) or if you use Gradle's Isolated Projects feature.
+
+### Project properties
+
+Set the `cfVersion` or `skipCheckerFramework` project property in the *root*
+project's `gradle.properties` file or on the command line; either one works in
+every subproject.  Setting it via `ext` in the subproject's own `build.gradle`
+file, or in a `gradle.properties` file in the subproject's own directory, works
+for that subproject only.
+
+Do not set either property in a way that only an ancestor project sees: via
+`ext` in the ancestor's `build.gradle` file, or in a `gradle.properties` file in
+the directory of an ancestor other than the root project.  A subproject does not
+inherit such a setting.  (Plugin version 1.0.2 and earlier did inherit such a
+setting.  If your build relies on that, move the setting to the root project's
+`gradle.properties` file; otherwise, the subprojects silently fall back to the
+`checkerFramework` block's settings.)
 
 ### Isolated projects
 
 Gradle's [isolated
 projects](https://docs.gradle.org/current/userguide/isolated_projects.html)
 feature forbids a project from reading or configuring another project.  The
-plugin is compatible with it, but the feature places two requirements on your
-build.
-
-1. Use [Approach 2](#approach-2).  Approach 1 configures the subprojects from
-   the top-level `build.gradle` file, which Gradle's Isolated Projects feature
-   forbids no matter which plugins the build uses: it reports "Project ':'
-   cannot access 'Project.apply' functionality on subprojects".
-
-2. Set the `cfVersion` or `skipCheckerFramework` project property in the *root*
-   project's `gradle.properties` file or on the command line.  Do not set them
-   in a way that only an ancestor project sees: via `ext` in the ancestor's
-   `build.gradle` file, or in a `gradle.properties` file in the directory of an
-   ancestor other than the root project.  Setting it via `ext` in the
-   subproject's own `build.gradle` file, or in a `gradle.properties` file in the
-   subproject's own directory, also works for a setting specific to that
-   subproject.
+plugin is compatible with it, but the feature places one requirement on your
+build: use [Approach 2](#approach-2).  Approach 1 configures the subprojects
+from the top-level `build.gradle` file, which Gradle's Isolated Projects feature
+forbids: it reports "Project ':' cannot access 'Project.apply' functionality on
+subprojects".
 
 ## Modules
 

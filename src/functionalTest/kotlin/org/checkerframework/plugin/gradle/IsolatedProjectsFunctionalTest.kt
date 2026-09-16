@@ -17,7 +17,7 @@ import org.junit.jupiter.api.io.TempDir
  * Every test uses a multi-project build, because that is the only kind of build in which the
  * feature can be violated: a single-project build has no other project to read. In particular, a
  * subproject that reads a project property must not fall back to its parent project when the
- * property is not set, which is what [Project.findProperty] does and what
+ * property is not set, which is what [org.gradle.api.Project.findProperty] does and what
  * [org.gradle.api.plugins.ExtraPropertiesExtension] does not.
  */
 class IsolatedProjectsFunctionalTest {
@@ -182,6 +182,42 @@ class IsolatedProjectsFunctionalTest {
     assertThat(result.output).contains("Note: Checker Framework $TEST_CF_VERSION")
   }
 
+  @Test
+  fun `test isolated projects with a root gradle_properties file`() {
+    // given a property set in the root project's gradle.properties file, which is the setting that
+    // the documentation tells users to migrate to
+    testProjectDir
+      .resolve("gradle.properties")
+      .appendText("${"\n"}cfVersion=$OTHER_TEST_CF_VERSION${"\n"}")
+
+    // when
+    val result = testProjectDir.buildWithArgs("compileJava", "--configuration-cache")
+
+    // then every subproject uses the overriding version, without a cross-project lookup: Gradle
+    // merges the root project's gradle.properties file into every project's extra properties
+    assertIsolatedProjects(result)
+    assertThat(result.output).contains("Note: Checker Framework $OTHER_TEST_CF_VERSION")
+    assertThat(result.output).doesNotContain("Note: Checker Framework $TEST_CF_VERSION")
+  }
+
+  @Test
+  fun `test isolated projects does not inherit an extra property from an ancestor`() {
+    // given a property that only the root project sees, because its build script sets it via `ext`
+    testProjectDir
+      .resolve("build.gradle.kts")
+      .appendText("${"\n"}extra[\"cfVersion\"] = \"$OTHER_TEST_CF_VERSION\"${"\n"}")
+
+    // when
+    val result = testProjectDir.buildWithArgs("compileJava", "--configuration-cache")
+
+    // then no subproject inherits the setting, so each one falls back to the extension's version.
+    // This is the incompatible change that the changelog documents; reading the ancestor's
+    // property is the cross-project access that the feature forbids.
+    assertIsolatedProjects(result)
+    assertThat(result.output).contains("Note: Checker Framework $TEST_CF_VERSION")
+    assertThat(result.output).doesNotContain("Note: Checker Framework $OTHER_TEST_CF_VERSION")
+  }
+
   companion object {
     /** The subprojects that apply the plugin. */
     private val SUBPROJECTS = listOf("a", "b")
@@ -194,7 +230,8 @@ class IsolatedProjectsFunctionalTest {
 
     /**
      * The message that Gradle issues when a project reads a property of its parent project, which
-     * is the violation that using [Project.findProperty] to read a project property causes.
+     * is the violation that using [org.gradle.api.Project.findProperty] to read a project property
+     * causes.
      */
     private const val CANNOT_LOOK_UP_IN_PARENT = "cannot dynamically look up a property"
 
