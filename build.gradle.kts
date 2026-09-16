@@ -12,7 +12,21 @@ version = "1.0.2"
 
 repositories { mavenCentral() }
 
-publishing { repositories { mavenLocal() } }
+/**
+ * A file-based Maven repository that the plugin is published to for functional tests that resolve
+ * it the way a user would, instead of through TestKit's injected plugin classpath.
+ */
+val functionalTestRepo: Provider<Directory> = layout.buildDirectory.dir("functional-test-repo")
+
+publishing {
+  repositories {
+    mavenLocal()
+    maven {
+      name = "functionalTest"
+      url = uri(functionalTestRepo)
+    }
+  }
+}
 
 dependencies { implementation(kotlin("stdlib")) }
 
@@ -65,6 +79,12 @@ testing {
       targets.configureEach {
         testTask {
           shouldRunAfter(test)
+
+          // Tests that cannot use TestKit's injected plugin classpath resolve the plugin from a
+          // file-based Maven repository instead.
+          dependsOn("publishAllPublicationsToFunctionalTestRepository")
+          systemProperty("test.plugin-repo", functionalTestRepo.get().asFile.absolutePath)
+          systemProperty("test.plugin-version", project.version.toString())
 
           val testJavaToolchain = project.findProperty("test.java-toolchain")
           testJavaToolchain?.also {

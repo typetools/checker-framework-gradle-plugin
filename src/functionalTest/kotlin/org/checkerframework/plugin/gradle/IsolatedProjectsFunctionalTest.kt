@@ -36,9 +36,23 @@ class IsolatedProjectsFunctionalTest {
         store(it, null)
       }
     }
+    // The build resolves the plugin from a Maven repository, as a user would, rather than from
+    // TestKit's injected plugin classpath, which cannot be resolved from two projects at once.
     testProjectDir
       .resolve("settings.gradle.kts")
-      .writeText("""rootProject.name = "isolated"${"\n"}include("a", "b")${"\n"}""")
+      .writeText(
+        """
+      pluginManagement {
+          repositories {
+              maven { url = uri("$testPluginRepo") }
+              gradlePluginPortal()
+          }
+      }
+      rootProject.name = "isolated"
+      include("a", "b")
+      """
+          .trimIndent()
+      )
     // The root project does not apply the plugin, so that the plugin is exercised only in
     // subprojects, which are the projects that the feature constrains.
     testProjectDir.resolve("build.gradle.kts").writeText("")
@@ -60,7 +74,7 @@ class IsolatedProjectsFunctionalTest {
 
       plugins {
           `java-library`
-          id("org.checkerframework")
+          id("org.checkerframework") version "$testPluginVersion"
       }
       repositories {
           mavenCentral()
@@ -93,10 +107,19 @@ class IsolatedProjectsFunctionalTest {
     assertThat(result.output).doesNotContain(CANNOT_LOOK_UP_IN_PARENT)
   }
 
+  /**
+   * Runs a build of [testProjectDir] that resolves the plugin from a Maven repository.
+   *
+   * @param tasks the build's command-line arguments
+   * @return the build's result
+   */
+  private fun File.buildIsolated(vararg tasks: String): BuildResult =
+    prepareBuildWithoutPluginClasspath(*tasks).build()
+
   @Test
   fun `test isolated projects in a multi-project build`() {
     // when
-    val result = testProjectDir.buildWithArgs("compileJava", "--configuration-cache")
+    val result = testProjectDir.buildIsolated("compileJava", "--configuration-cache")
 
     // then the build does not violate the isolated projects feature
     assertIsolatedProjects(result)
@@ -108,7 +131,7 @@ class IsolatedProjectsFunctionalTest {
 
     // when the build is run again from a clean output directory
     SUBPROJECTS.forEach { testProjectDir.resolve("$it/build/classes").deleteRecursively() }
-    val secondResult = testProjectDir.buildWithArgs("compileJava", "--configuration-cache")
+    val secondResult = testProjectDir.buildIsolated("compileJava", "--configuration-cache")
 
     // then
     assertIsolatedProjects(secondResult)
@@ -122,7 +145,7 @@ class IsolatedProjectsFunctionalTest {
   fun `test isolated projects with -PcfVersion`() {
     // when
     val result =
-      testProjectDir.buildWithArgs(
+      testProjectDir.buildIsolated(
         "compileJava",
         "--configuration-cache",
         "-PcfVersion=$OTHER_TEST_CF_VERSION",
@@ -138,7 +161,7 @@ class IsolatedProjectsFunctionalTest {
   fun `test isolated projects with -PskipCheckerFramework`() {
     // when
     val result =
-      testProjectDir.buildWithArgs("compileJava", "--configuration-cache", "-PskipCheckerFramework")
+      testProjectDir.buildIsolated("compileJava", "--configuration-cache", "-PskipCheckerFramework")
 
     // then no checker runs, and reading the property does not look in the parent project
     assertIsolatedProjects(result)
@@ -157,7 +180,7 @@ class IsolatedProjectsFunctionalTest {
       .writeText("cfVersion=$OTHER_TEST_CF_VERSION${"\n"}")
 
     // when
-    val result = testProjectDir.buildWithArgs("compileJava", "--configuration-cache")
+    val result = testProjectDir.buildIsolated("compileJava", "--configuration-cache")
 
     // then only that subproject uses the overriding version
     assertIsolatedProjects(result)
@@ -174,7 +197,7 @@ class IsolatedProjectsFunctionalTest {
       .appendText("${"\n"}extra[\"cfVersion\"] = \"$OTHER_TEST_CF_VERSION\"${"\n"}")
 
     // when
-    val result = testProjectDir.buildWithArgs("compileJava", "--configuration-cache")
+    val result = testProjectDir.buildIsolated("compileJava", "--configuration-cache")
 
     // then the extra property is read, without a cross-project lookup
     assertIsolatedProjects(result)
@@ -191,7 +214,7 @@ class IsolatedProjectsFunctionalTest {
       .appendText("${"\n"}cfVersion=$OTHER_TEST_CF_VERSION${"\n"}")
 
     // when
-    val result = testProjectDir.buildWithArgs("compileJava", "--configuration-cache")
+    val result = testProjectDir.buildIsolated("compileJava", "--configuration-cache")
 
     // then every subproject uses the overriding version, without a cross-project lookup: Gradle
     // merges the root project's gradle.properties file into every project's extra properties
@@ -208,7 +231,7 @@ class IsolatedProjectsFunctionalTest {
       .appendText("${"\n"}extra[\"cfVersion\"] = \"$OTHER_TEST_CF_VERSION\"${"\n"}")
 
     // when
-    val result = testProjectDir.buildWithArgs("compileJava", "--configuration-cache")
+    val result = testProjectDir.buildIsolated("compileJava", "--configuration-cache")
 
     // then no subproject inherits the setting, so each one falls back to the extension's version.
     // This is the incompatible change that the changelog documents; reading the ancestor's
