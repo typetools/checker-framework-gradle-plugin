@@ -10,11 +10,15 @@ import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
+import org.gradle.work.DisableCachingByDefault
 
 /**
  * Create META-INF/services/javax.annotation.processing.Processor and
  * META-INF/gradle/incremental.annotation.processors files so that processor autodiscovery works.
  */
+@DisableCachingByDefault(
+  because = "Writing two small files from the task inputs is cheaper than build cache round-trips"
+)
 abstract class WriteCheckerManifestTask : DefaultTask() {
   companion object {
     /**
