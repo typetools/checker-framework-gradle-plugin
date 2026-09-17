@@ -789,6 +789,8 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
         // The forbidden arguments are removed here, rather than only from `extraJavacArgs`,
         // because the build script or another plugin may have put them in the task's compiler
         // arguments or in one of its argument providers.
+        // Removing an argument is not reported, because reporting about removing `-Pwpi2` would be
+        // common, and would be noise rather than information.
         val filteredArgs = ArrayList(options.compilerArgs)
         if (filteredArgs.removeAll(Wpi2::isForbiddenArgument)) {
           options.compilerArgs = filteredArgs
