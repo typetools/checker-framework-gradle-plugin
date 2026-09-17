@@ -29,6 +29,7 @@ import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.SourceSetContainer
 import org.gradle.api.tasks.TaskProvider
+import org.gradle.api.tasks.compile.CompileOptions
 import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.kotlin.dsl.getByName
 import org.gradle.kotlin.dsl.getByType
@@ -108,6 +109,11 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
     // configureJavaCompileTasks leaves the task alone, is not compiled with the Checker Framework.
     val cfEnabled = HashMap<String, Property<Boolean>>()
 
+    // The directory that holds the whole-program inference directories, if the "wpi2" project
+    // property asks that this build perform whole-program inference, and no value otherwise.
+    // configureJavaCompileTasks sets it, after the build script has run.
+    val wpi2RootDir = project.objects.property(File::class.java)
+
     project.tasks.withType<JavaCompile>().configureEach {
       (options as ExtensionAware)
         .extensions
@@ -132,6 +138,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
           cfExtension.checkers,
           cfManifestFiles,
           manifestService,
+          wpi2RootDir,
         )
       )
     }
@@ -152,7 +159,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
     // Configure after the build script has run, so that the values of the extensions and of the
     // project properties are the ones the user requested, no matter when a task is realized.
     afterEvaluateOrNow(project) {
-      configureJavaCompileTasks(project, cfExtension, cfManifestFiles, cfEnabled)
+      configureJavaCompileTasks(project, cfExtension, cfManifestFiles, cfEnabled, wpi2RootDir)
     }
 
     // Handle Lombok
@@ -291,13 +298,24 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
    * @param cfManifestFiles the Checker Framework manifest directory
    * @param cfEnabled for each task, the property that says whether to run the Checker Framework on
    *   it, which this method sets
+   * @param wpi2RootDir the directory that holds the whole-program inference directories, which this
+   *   method sets if the "wpi2" project property asks for whole-program inference
    */
   private fun configureJavaCompileTasks(
     project: Project,
     cfExtension: CheckerFrameworkExtension,
     cfManifestFiles: FileCollection,
     cfEnabled: Map<String, Property<Boolean>>,
+    wpi2RootDir: Property<File>,
   ) {
+    // The "wpi2" project property is read once, for the whole project, rather than for each task,
+    // because whole-program inference concerns the whole build: every task and every subproject
+    // reads and writes the same inference directories. The root directory is used rather than the
+    // project directory for the same reason.
+    if (wpi2Property(project)) {
+      wpi2RootDir.set(project.rootDir)
+    }
+
     project.tasks.withType<JavaCompile>().configureEach {
       // The "skipCheckerFramework" project property is read here, rather than once outside this
       // block, so that its value is the one the user requested even when this plugin is applied
@@ -334,7 +352,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
       // the Checker Framework is disabled out of date.
       options.compilerArgumentProviders.add(
         CheckerFrameworkCompilerArgumentProvider(
-          cfExtension.extraJavacArgs.zip(enabled, ExtraJavacArgsIfEnabled())
+          cfExtension.extraJavacArgs.zip(enabled, ExtraJavacArgsIfEnabled(wpi2RootDir))
         )
       )
       options.forkOptions.jvmArgumentProviders.add(CheckerFrameworkJvmArgumentProvider(enabled))
@@ -527,6 +545,15 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
     projectProperty(project, "skipCheckerFramework")?.let { it != "false" }
 
   /**
+   * Returns true if the "wpi2" project property asks that this build perform whole-program
+   * inference, as the `wpi2.sh` script of the Checker Framework requires.
+   *
+   * @param project the project whose property to read
+   */
+  private fun wpi2Property(project: Project): Boolean =
+    projectProperty(project, "wpi2")?.let { it != "false" } ?: false
+
+  /**
    * Add the default dependencies for the given {@code jarName}.
    *
    * @param cfVersion a provider of the Checker Framework version, "local", or "dependencies"; the
@@ -680,12 +707,15 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
    * @param checkers the checkers to run
    * @param cfManifestFiles the Checker Framework manifest directory
    * @param manifestService the service that records the manifest directories that this build writes
+   * @param wpi2RootDir the directory that holds the whole-program inference directories, or no
+   *   value if this build is not performing whole-program inference
    */
   internal class ApplyCheckerFrameworkOptions(
     private val enabled: Provider<Boolean>,
     private val checkers: ListProperty<String>,
     private val cfManifestFiles: FileCollection,
     private val manifestService: Provider<CheckerManifestService>,
+    private val wpi2RootDir: Provider<File>,
   ) : Action<Task> {
     override fun execute(task: Task) {
       val options = (task as JavaCompile).options
@@ -716,6 +746,16 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
       }
 
       val compilerArgs = ArrayList(options.compilerArgs)
+      var compilerArgsChanged = false
+
+      // Remove the arguments that must not be present when performing whole-program inference.
+      // They are removed here, rather than only from `extraJavacArgs`, because the build script or
+      // another plugin may have put them in the task's compiler arguments.
+      if (wpi2RootDir.isPresent) {
+        compilerArgsChanged = compilerArgs.removeAll(Wpi2::isForbiddenArgument)
+        filterArgumentProviders(options)
+      }
+
       val processorArgIndex = compilerArgs.indexOf("-processor")
       if (processorArgIndex != -1) {
         if (processorArgIndex + 1 < compilerArgs.size) {
@@ -726,11 +766,32 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
           val oldProcessors = compilerArgs[processorArgIndex + 1]
           val cfProcessors = checkerNames.joinToString(separator = ",")
           compilerArgs[processorArgIndex + 1] = "$oldProcessors,$cfProcessors"
-          options.compilerArgs = compilerArgs
+          compilerArgsChanged = true
         } else {
           task.logger.warn("Found -processor argument without a value; no checkers will be used.")
         }
       }
+
+      if (compilerArgsChanged) {
+        options.compilerArgs = compilerArgs
+      }
+    }
+
+    /**
+     * Replaces each of the task's command-line argument providers by one that omits the arguments
+     * that must not be present when performing whole-program inference.
+     *
+     * This runs at execution time, which is too late for Gradle's up-to-date check: that check read
+     * the arguments before the omission. That is harmless, because the arguments that it read are a
+     * superset of the ones that javac receives, so a task whose arguments changed is still out of
+     * date.
+     *
+     * @param options the compile options whose argument providers to replace
+     */
+    private fun filterArgumentProviders(options: CompileOptions) {
+      val argumentProviders = ArrayList(options.compilerArgumentProviders)
+      options.compilerArgumentProviders.clear()
+      argumentProviders.forEach { options.compilerArgumentProviders.add(Wpi2ArgumentFilter(it)) }
     }
 
     /**
@@ -780,12 +841,75 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
 
   /**
    * Returns the extra javac arguments if the Checker Framework is enabled, and no arguments
-   * otherwise.
+   * otherwise. If this build performs whole-program inference, then the arguments that it requires
+   * are added and the arguments that it forbids are removed.
+   *
+   * @param wpi2RootDir the directory that holds the whole-program inference directories, or no
+   *   value if this build is not performing whole-program inference
    */
-  internal class ExtraJavacArgsIfEnabled : BiFunction<List<String>, Boolean, List<String>> {
+  internal class ExtraJavacArgsIfEnabled(private val wpi2RootDir: Provider<File>) :
+    BiFunction<List<String>, Boolean, List<String>> {
     override fun apply(extraJavacArgs: List<String>, enabled: Boolean): List<String> {
-      return if (enabled) extraJavacArgs else emptyList()
+      if (!enabled) {
+        return emptyList()
+      }
+      val rootDir = wpi2RootDir.orNull ?: return extraJavacArgs
+      return extraJavacArgs.filterNot(Wpi2::isForbiddenArgument) + Wpi2.arguments(rootDir)
     }
+  }
+
+  /**
+   * Passes on another provider's arguments, omitting the ones that must not be present when
+   * performing whole-program inference.
+   *
+   * @param delegate the provider whose arguments to filter
+   */
+  internal class Wpi2ArgumentFilter(private val delegate: CommandLineArgumentProvider) :
+    CommandLineArgumentProvider {
+    override fun asArguments(): Iterable<String?> {
+      return delegate.asArguments().filterNot { it != null && Wpi2.isForbiddenArgument(it) }
+    }
+  }
+
+  /**
+   * The javac arguments that whole-program inference requires and the ones that it forbids. See the
+   * "Whole-program inference" section of the Checker Framework manual:
+   * https://checkerframework.org/manual/#whole-program-inference
+   */
+  internal object Wpi2 {
+    /** The directory that the compiler writes inference results to. */
+    private const val NEW_DIRECTORY_NAME = "whole-program-inference-new"
+
+    /** The directory that the compiler reads inference results from. */
+    private const val OUTPUT_DIRECTORY_NAME = "whole-program-inference-output"
+
+    /**
+     * Returns the arguments that make the Checker Framework perform whole-program inference. The
+     * `wpi2.sh` script requires exactly these arguments, including the names of the directories.
+     *
+     * @param rootDir the directory that holds the whole-program inference directories
+     */
+    fun arguments(rootDir: File): List<String> =
+      listOf(
+        "-Ainfer=ajava",
+        "-AinferOutputDirectory=" + File(rootDir, NEW_DIRECTORY_NAME).absolutePath,
+        "-Aajava=" + File(rootDir, OUTPUT_DIRECTORY_NAME).absolutePath,
+        "-Awarns",
+      )
+
+    /**
+     * Returns true if the given javac argument must not be present when performing whole-program
+     * inference. `-Werror` would turn the warnings that `-Awarns` permits, and that inference
+     * issues until it converges, back into errors that halt the build. `-AinferOutputOriginal`
+     * would write copies of the original source files to the inference output directory, which
+     * `wpi2.sh` would treat as inference results.
+     *
+     * @param argument a javac argument
+     */
+    fun isForbiddenArgument(argument: String): Boolean =
+      argument == "-Werror" ||
+        argument == "-AinferOutputOriginal" ||
+        argument.startsWith("-AinferOutputOriginal=")
   }
 
   /** Provides extraJavacArgs to the compiler, if the Checker Framework is enabled. */
