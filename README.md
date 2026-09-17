@@ -393,5 +393,5 @@ LocalWords:  compileOnly testCompileOnly checkerFrameworkVersion PcfLocal
 LocalWords:  skipCheckerFramework PskipCheckerFramework skipVersionCheck
 LocalWords:  suppressLombokWarnings PskipVersionCheck wpi Pwpi ROOTDIR
 LocalWords:  ajava AinferOutputDirectory Aajava Awarns AinferOutputOriginal
-LocalWords:  gitignore compilerArgs CHECKERFRAMEWORK
+LocalWords:  gitignore compilerArgs getRootDir
 -->

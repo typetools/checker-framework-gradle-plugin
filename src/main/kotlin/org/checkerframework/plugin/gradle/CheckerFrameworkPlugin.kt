@@ -310,10 +310,11 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
   ) {
     // The "wpi2" project property is read once, for the whole project, rather than for each task,
     // because whole-program inference concerns the whole build: every task and every subproject
-    // reads and writes the same inference directories. The root directory is used rather than the
+    // reads and writes the same inference directories. A root directory is used rather than the
     // project directory for the same reason.
-    if (wpi2Property(project)) {
-      wpi2RootDir.set(project.rootDir)
+    val wpi2Directory = wpi2RootDirectory(project)
+    if (wpi2Directory != null) {
+      wpi2RootDir.set(wpi2Directory)
     }
 
     project.tasks.withType<JavaCompile>().configureEach {
@@ -356,6 +357,20 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
         )
       )
       options.forkOptions.jvmArgumentProviders.add(CheckerFrameworkJvmArgumentProvider(enabled))
+
+      if (wpi2Directory != null) {
+        // Whole-program inference is iterative: `wpi2.sh` runs the build repeatedly, moving the
+        // inference results from one directory to the other between runs. Neither directory is a
+        // task input or output -- every task in the build shares them, and `wpi2.sh` rather than
+        // Gradle manages them -- so nothing that Gradle watches changes between runs. Users are
+        // supposed to include the "clean" target in their command. This is insurance against
+        // omitting that. Without this, if the user's command does not include "clean", then every
+        // run after the first would skip the compilation as up to date or restore its outputs from
+        // the build cache, and no annotations would be inferred.
+        val notRunningCheckerFramework = NotRunningCheckerFramework(enabled)
+        outputs.upToDateWhen(notRunningCheckerFramework)
+        outputs.cacheIf("whole-program inference must recompile", notRunningCheckerFramework)
+      }
 
       requestFork(this, enabled.get())
 
@@ -545,13 +560,33 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
     projectProperty(project, "skipCheckerFramework")?.let { it != "false" }
 
   /**
-   * Returns true if the "wpi2" project property asks that this build perform whole-program
-   * inference, as the `wpi2.sh` script of the Checker Framework requires.
+   * Returns the directory that holds the whole-program inference directories, if the "wpi2" project
+   * property asks that this build perform whole-program inference as the `wpi2.sh` script of the
+   * Checker Framework requires, and null otherwise.
    *
    * @param project the project whose property to read
    */
-  private fun wpi2Property(project: Project): Boolean =
-    projectProperty(project, "wpi2")?.let { it != "false" } ?: false
+  private fun wpi2RootDirectory(project: Project): File? {
+    if (projectProperty(project, "wpi2")?.let { it != "false" } != true) {
+      return null
+    }
+    // `Project.getRootDir()` is the root directory of the build that contains the project, which in
+    // a composite build is an included build or `buildSrc` rather than the build that the user
+    // invoked. Every build of a composite must use one set of directories, because `wpi2.sh` looks
+    // in only one place, so use the root directory of the outermost build.
+    var gradle = project.gradle
+    while (true) {
+      gradle = gradle.parent ?: break
+    }
+    // `Gradle.getRootProject()` throws if the outermost build's root project does not exist yet, as
+    // when this plugin is applied while `buildSrc` is being configured. Then fall back to this
+    // build's root directory.
+    return try {
+      gradle.rootProject.rootDir
+    } catch (e: IllegalStateException) {
+      project.rootDir
+    }
+  }
 
   /**
    * Add the default dependencies for the given {@code jarName}.
@@ -677,6 +712,19 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
   }
 
   /**
+   * Returns true if the Checker Framework is not enabled on a task, which is the condition under
+   * which whole-program inference leaves the task's up-to-date check and caching alone.
+   *
+   * @param enabled whether to run the Checker Framework on the task; the Checker Framework does not
+   *   run if the property has no value, which means that this plugin left the task alone
+   */
+  internal class NotRunningCheckerFramework(private val enabled: Provider<Boolean>) : Spec<Task> {
+    override fun isSatisfiedBy(task: Task): Boolean {
+      return !enabled.getOrElse(false)
+    }
+  }
+
+  /**
    * Records, in the build service, that the task that writes the manifest is part of the current
    * build's task graph, and always lets the task run. Gradle evaluates the spec when the task is
    * about to run, which is before any [JavaCompile] task that this plugin configures, because such
@@ -726,8 +774,25 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
       if (checkerNames.isEmpty()) {
         throw IllegalStateException("Must specify checkers for the Checker Framework.")
       }
+
+      // Configure whole-program inference before the test below, because ExtraJavacArgsIfEnabled
+      // adds the arguments that inference requires whenever the Checker Framework is enabled, so
+      // the arguments that inference forbids must be removed under the same condition.
+      val wpi2Directory = wpi2RootDir.orNull
+      if (wpi2Directory != null) {
+        Wpi2.createAjavaDirectory(wpi2Directory)
+        // The forbidden arguments are removed here, rather than only from `extraJavacArgs`,
+        // because the build script or another plugin may have put them in the task's compiler
+        // arguments or in one of its argument providers.
+        val filteredArgs = ArrayList(options.compilerArgs)
+        if (filteredArgs.removeAll(Wpi2::isForbiddenArgument)) {
+          options.compilerArgs = filteredArgs
+        }
+        filterArgumentProviders(options)
+      }
+
       // If the annotationProcessorPath is null, then annotation processing is disabled, so no
-      // checker will run and there is nothing to configure.
+      // checker will run and there is nothing more to configure.
       val annotationProcessorPath = options.annotationProcessorPath
       if (annotationProcessorPath == null) {
         return
@@ -746,16 +811,6 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
       }
 
       val compilerArgs = ArrayList(options.compilerArgs)
-      var compilerArgsChanged = false
-
-      // Remove the arguments that must not be present when performing whole-program inference.
-      // They are removed here, rather than only from `extraJavacArgs`, because the build script or
-      // another plugin may have put them in the task's compiler arguments.
-      if (wpi2RootDir.isPresent) {
-        compilerArgsChanged = compilerArgs.removeAll(Wpi2::isForbiddenArgument)
-        filterArgumentProviders(options)
-      }
-
       val processorArgIndex = compilerArgs.indexOf("-processor")
       if (processorArgIndex != -1) {
         if (processorArgIndex + 1 < compilerArgs.size) {
@@ -766,14 +821,10 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
           val oldProcessors = compilerArgs[processorArgIndex + 1]
           val cfProcessors = checkerNames.joinToString(separator = ",")
           compilerArgs[processorArgIndex + 1] = "$oldProcessors,$cfProcessors"
-          compilerArgsChanged = true
+          options.compilerArgs = compilerArgs
         } else {
           task.logger.warn("Found -processor argument without a value; no checkers will be used.")
         }
-      }
-
-      if (compilerArgsChanged) {
-        options.compilerArgs = compilerArgs
       }
     }
 
@@ -896,6 +947,18 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
         "-Aajava=" + File(rootDir, OUTPUT_DIRECTORY_NAME).absolutePath,
         "-Awarns",
       )
+
+    /**
+     * Creates the directory that the compiler reads inference results from, if it does not exist.
+     * The Checker Framework issues a warning that contains the whole classpath if the directory
+     * that `-Aajava` names does not exist, as it does not until `wpi2.sh` has completed its first
+     * round of inference.
+     *
+     * @param rootDir the directory that holds the whole-program inference directories
+     */
+    fun createAjavaDirectory(rootDir: File) {
+      File(rootDir, OUTPUT_DIRECTORY_NAME).mkdirs()
+    }
 
     /**
      * Returns true if the given javac argument must not be present when performing whole-program

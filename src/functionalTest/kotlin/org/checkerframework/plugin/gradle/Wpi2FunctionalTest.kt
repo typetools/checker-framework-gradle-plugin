@@ -198,7 +198,10 @@ class Wpi2FunctionalTest : KotlinPluginFunctionalTest() {
     val newDir = testProjectDir.resolve("whole-program-inference-new")
     val ajavaFiles = newDir.walkTopDown().filter { it.extension == "ajava" }.toList()
     assertThat(ajavaFiles).isNotEmpty()
-    assertThat(ajavaFiles.first().readText())
+    // The Nullness Checker is a compound checker, so it writes one file per subchecker, in an
+    // order that differs from one file system to another. Only one of the files, whichever it is,
+    // contains the inferred annotation.
+    assertThat(ajavaFiles.joinToString("\n") { "${it.path}:\n" + it.readText() })
       .contains("@org.checkerframework.checker.nullness.qual.Nullable")
   }
 
@@ -227,6 +230,84 @@ class Wpi2FunctionalTest : KotlinPluginFunctionalTest() {
     // then
     assertThat(secondResult.output).contains(CONFIGURATION_CACHE_REUSED)
     assertThat(secondResult.compilerArgs()).containsAtLeast("-Ainfer=ajava", "-Awarns")
+  }
+
+  @Test
+  fun `test -Pwpi2 removes the forbidden arguments when annotation processing is disabled`() {
+    buildFile.appendText(
+      """
+      configure<CheckerFrameworkExtension> {
+        extraJavacArgs = listOf("-AinferOutputOriginal")
+      }
+      tasks.named<JavaCompile>("compileJava") {
+        options.compilerArgs.add("-Werror")
+        options.annotationProcessorPath = null
+      }
+
+      """
+        .trimIndent() + printCompilerArgs()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgs("compileJava", "-Pwpi2")
+
+    // then: the forbidden arguments are removed, even though no checker runs on this task, because
+    // the arguments that whole-program inference requires are added to it all the same
+    assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    val args = result.compilerArgs()
+    assertThat(args).containsNoneOf("-Werror", "-AinferOutputOriginal")
+  }
+
+  @Test
+  fun `test -Pwpi2 compiles on every invocation`() {
+    // given
+    testProjectDir.writeInferenceExample()
+    val newDir = testProjectDir.resolve("whole-program-inference-new")
+    val outputDir = testProjectDir.resolve("whole-program-inference-output")
+
+    // when: the build is run twice, as wpi2.sh does, moving the inference results from one
+    // directory to the other in between, which is all that changes from one run to the next
+    val firstResult = testProjectDir.buildWithArgs("compileJava", "-Pwpi2")
+    assertThat(firstResult.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(outputDir.deleteRecursively()).isTrue()
+    assertThat(newDir.renameTo(outputDir)).isTrue()
+    val secondResult = testProjectDir.buildWithArgs("compileJava", "-Pwpi2")
+
+    // then: the compilation runs again and writes its inference results, rather than being skipped
+    // as up to date and writing nothing at all
+    assertThat(secondResult.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    val ajavaFiles = newDir.walkTopDown().filter { it.extension == "ajava" }.toList()
+    assertThat(ajavaFiles).isNotEmpty()
+  }
+
+  @Test
+  fun `test no -Pwpi2 leaves the up-to-date check alone`() {
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    testProjectDir.buildWithArgs("compileJava")
+    val secondResult = testProjectDir.buildWithArgs("compileJava")
+
+    // then
+    assertThat(secondResult.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.UP_TO_DATE)
+  }
+
+  @Test
+  fun `test -Pwpi2 creates the directory that it reads inference results from`() {
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgs("compileJava", "-Pwpi2")
+
+    // then: the Checker Framework warns, printing the entire classpath, if the directory that
+    // "-Aajava" names does not exist, as it does not before the first round of inference
+    assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(testProjectDir.resolve("whole-program-inference-output").isDirectory).isTrue()
+    assertThat(result.output).doesNotContain("did not find annotation file or directory")
   }
 
   @Test
