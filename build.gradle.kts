@@ -69,7 +69,7 @@ testing {
       }
     }
 
-    val test by getting(JvmTestSuite::class) { dependencies { implementation(project()) } }
+    val test = getByName<JvmTestSuite>("test") { dependencies { implementation(project()) } }
     register<JvmTestSuite>("functionalTest") {
       dependencies { implementation(gradleTestKit()) }
       // Associate with main Kotlin compilation to access internal constants.

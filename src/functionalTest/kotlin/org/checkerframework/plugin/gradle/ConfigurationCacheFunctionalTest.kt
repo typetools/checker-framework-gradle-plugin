@@ -281,7 +281,7 @@ class ConfigurationCacheFunctionalTest : KotlinPluginFunctionalTest() {
           plugins {
               `java-library`
               id("org.checkerframework")
-              id("io.freefair.lombok").version("9.2.0")
+              id("io.freefair.lombok").version("9.5.0")
           }
           repositories {
               mavenCentral()

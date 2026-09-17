@@ -48,14 +48,14 @@ Checker Framework to use.
 
   ```toml
   [libraries]
-  checker-framework = "org.checkerframework:checker:3.53.1"
+  checker-framework = "org.checkerframework:checker:4.2.3"
   ```
 
 * Alternately, you can edit just one file.  Add this to `build.gradle`:
 
   ```groovy
   checkerFramework {
-    version = "3.53.1"
+    version = "4.2.3"
   }
   ```
 
@@ -80,7 +80,7 @@ checkerFramework {
 
 ext {
     versions = [
-        eisopVersion: "3.42.0-eisop1",
+        eisopVersion: "3.49.5-eisop1",
     ]
 }
 
@@ -286,7 +286,7 @@ subprojects {
 
   checkerFramework {
     checkers = ["org.checkerframework.checker.index.IndexChecker"]
-    version = "3.53.1"
+    version = "4.2.3"
   }
 }
 ```

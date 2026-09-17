@@ -6,7 +6,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 
-const val TEST_CF_VERSION = "3.53.0"
+const val TEST_CF_VERSION = "4.2.3"
 
 class CfPluginFunctionalTest : KotlinPluginFunctionalTest() {
   @BeforeEach
@@ -436,12 +436,16 @@ class CfPluginFunctionalTest : KotlinPluginFunctionalTest() {
   @Test
   fun `test checkerFramework configuration`() {
     // This tests that the version of the Checker Framework in the checker framework configuration
-    // is used instead of the version in 'version'.
+    // is used instead of the version in 'version'.  Both versions are pinned rather than tracking
+    // TEST_CF_VERSION: 'version' supplies checker-qual, and a checker-qual older than checker.jar
+    // may lack qualifiers that checker.jar refers to, which fails for a reason unrelated to which
+    // version this test expects to win.
+    val configurationVersion = "3.53.0"
     val testVersion = "3.43.0"
     buildFile.appendText(
       """
       dependencies {
-        checkerFramework("org.checkerframework:checker:$TEST_CF_VERSION")
+        checkerFramework("org.checkerframework:checker:$configurationVersion")
       }
       configure<CheckerFrameworkExtension> {
         checkers = listOf("org.checkerframework.checker.index.IndexChecker")
@@ -460,7 +464,7 @@ class CfPluginFunctionalTest : KotlinPluginFunctionalTest() {
     // then
 
     assertThat(result.task(":compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
-    assertThat(result.output).contains("Note: Checker Framework $TEST_CF_VERSION")
+    assertThat(result.output).contains("Note: Checker Framework $configurationVersion")
   }
 
   @Test
@@ -533,7 +537,9 @@ class CfPluginFunctionalTest : KotlinPluginFunctionalTest() {
         // main source set's implementation configuration.
         val mainProcessorPath = configurations["annotationProcessor"]
         val testProcessorPath = configurations["testAnnotationProcessor"]
-        val hasChecker = { c: Configuration -> c.files.any { it.name.startsWith("checker-3") } }
+        val hasChecker = { c: Configuration ->
+          c.files.any { it.name.startsWith("checker-$TEST_CF_VERSION") }
+        }
         doLast {
           println("MAIN_HAS_CF=" + hasChecker(mainProcessorPath))
           println("TEST_HAS_CF=" + hasChecker(testProcessorPath))
@@ -608,7 +614,8 @@ class CfPluginFunctionalTest : KotlinPluginFunctionalTest() {
       tasks.register("printCheckerJars") {
         val testProcessorPath = configurations["testAnnotationProcessor"]
         doLast {
-          val checkerJars = testProcessorPath.files.filter { it.name.startsWith("checker-3") }
+          val checkerJars =
+            testProcessorPath.files.filter { it.name.startsWith("checker-$TEST_CF_VERSION") }
           println("CHECKER_JARS=" + checkerJars.joinToString(",") { it.name })
         }
       }
@@ -734,6 +741,37 @@ class CfPluginFunctionalTest : KotlinPluginFunctionalTest() {
     // then
     assertThat(result.task(":printResolvedEarly")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
     assertThat(result.output).containsMatch("RESOLVED_EARLY=.*checker-$TEST_CF_VERSION")
+  }
+
+  @Test
+  fun `test enabling the Checker Framework after the task graph is computed fails`() {
+    buildFile.appendText(
+      """
+      configure<CheckerFrameworkExtension> {
+        version = "$TEST_CF_VERSION"
+        checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
+        skipCheckerFramework = true
+      }
+      // Too late: the writeCheckerManifest task is not in the task graph, so no checker would run.
+      gradle.taskGraph.whenReady {
+        the<CheckerFrameworkExtension>().skipCheckerFramework = false
+      }
+      """
+        .trimIndent()
+    )
+    // given
+    testProjectDir.writeEmptyClass()
+
+    // when
+    val result = testProjectDir.buildWithArgsAndFail("compileJava")
+
+    // then
+    assertThat(result.output)
+      .contains(
+        "The Checker Framework was enabled on :compileJava too late for it to run: " +
+          "the manifest that makes javac discover the checkers was not written. " +
+          "Enable the Checker Framework while the build is being configured, no later than when Gradle builds the task graph."
+      )
   }
 
   @Test

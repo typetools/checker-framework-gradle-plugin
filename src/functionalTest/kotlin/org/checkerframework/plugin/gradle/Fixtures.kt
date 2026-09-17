@@ -105,7 +105,7 @@ fun File.writeNullnessFailure() {
 }
 
 /** The Tainting Checker's error, in the "-Anomsgtext" format that omits the message text. */
-const val TAINTING_FAILURE = "Failure2Checkers.java:8: error: (argument)"
+const val TAINTING_FAILURE = "Failure2Checkers.java:8: error: [argument]"
 
 fun File.writeTaintingFailure() {
   File(this.resolve("src/main/java/test").apply { mkdirs() }, "Failure2Checkers.java").apply {
