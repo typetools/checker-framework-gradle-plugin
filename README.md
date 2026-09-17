@@ -146,6 +146,14 @@ checkerFramework {
 }
 ```
 
+## Whole-program inference
+
+The Checker Framework's `wpi2.sh` script can [infer annotations for your
+project](https://checkerframework.org/manual/#wpi-two).  If you pass `-Pwpi2` to
+your gradle invocation, then it will use the command-line arguments that
+`wpi2.sh` requires.  See the [Checker Framework
+manual](https://checkerframework.org/manual/#wpi-two) for details.
+
 ## Disabling the Checker Framework
 
 You can completely disable the Checker Framework (e.g., when testing something
@@ -383,5 +391,7 @@ LocalWords:  delombok addLombokGeneratedAnnotation addSuppressWarnings cfLocal
 LocalWords:  publishToMavenLocal pluginManagement gradlePluginPortal
 LocalWords:  compileOnly testCompileOnly checkerFrameworkVersion PcfLocal
 LocalWords:  skipCheckerFramework PskipCheckerFramework skipVersionCheck
-LocalWords:  suppressLombokWarnings PskipVersionCheck
+LocalWords:  suppressLombokWarnings PskipVersionCheck wpi Pwpi ROOTDIR
+LocalWords:  ajava AinferOutputDirectory Aajava Awarns AinferOutputOriginal
+LocalWords:  gitignore compilerArgs getRootDir
 -->
