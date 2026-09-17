@@ -38,13 +38,16 @@ class IsolatedProjectsFunctionalTest {
     }
     // The build resolves the plugin from a Maven repository, as a user would, rather than from
     // TestKit's injected plugin classpath, which cannot be resolved from two projects at once.
+    // A Windows path's backslashes would be escape sequences in the generated Kotlin source, so
+    // the path is written with forward slashes, which Windows and every other platform accept.
+    val pluginRepoUrl = testPluginRepo.replace('\\', '/')
     testProjectDir
       .resolve("settings.gradle.kts")
       .writeText(
         """
       pluginManagement {
           repositories {
-              maven { url = uri("$testPluginRepo") }
+              maven { url = uri("$pluginRepoUrl") }
               gradlePluginPortal()
           }
       }
