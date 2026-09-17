@@ -313,9 +313,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
     // reads and writes the same inference directories. A root directory is used rather than the
     // project directory for the same reason.
     val wpi2Directory = wpi2RootDirectory(project)
-    if (wpi2Directory != null) {
-      wpi2RootDir.set(wpi2Directory)
-    }
+    wpi2RootDir.set(wpi2Directory)
 
     project.tasks.withType<JavaCompile>().configureEach {
       // The "skipCheckerFramework" project property is read here, rather than once outside this
@@ -353,7 +351,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
       // the Checker Framework is disabled out of date.
       options.compilerArgumentProviders.add(
         CheckerFrameworkCompilerArgumentProvider(
-          cfExtension.extraJavacArgs.zip(enabled, ExtraJavacArgsIfEnabled(wpi2RootDir))
+          cfExtension.extraJavacArgs.zip(enabled, ExtraJavacArgsIfEnabled(wpi2Directory))
         )
       )
       options.forkOptions.jvmArgumentProviders.add(CheckerFrameworkJvmArgumentProvider(enabled))
@@ -557,7 +555,17 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
    * @param project the project whose property to read
    */
   private fun skipCheckerFrameworkProperty(project: Project): Boolean? =
-    projectProperty(project, "skipCheckerFramework")?.let { it != "false" }
+    booleanProjectProperty(project, "skipCheckerFramework")
+
+  /**
+   * Returns the value of a project property that is interpreted as a boolean: true if it is set to
+   * anything but "false", false if it is set to "false", and null if it is not set.
+   *
+   * @param project the project whose property to read
+   * @param propertyName the name of the property to read
+   */
+  private fun booleanProjectProperty(project: Project, propertyName: String): Boolean? =
+    projectProperty(project, propertyName)?.let { it != "false" }
 
   /**
    * Returns the directory that holds the whole-program inference directories, if the "wpi2" project
@@ -567,17 +575,14 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
    * @param project the project whose property to read
    */
   private fun wpi2RootDirectory(project: Project): File? {
-    if (projectProperty(project, "wpi2")?.let { it != "false" } != true) {
+    if (booleanProjectProperty(project, "wpi2") != true) {
       return null
     }
     // `Project.getRootDir()` is the root directory of the build that contains the project, which in
     // a composite build is an included build or `buildSrc` rather than the build that the user
     // invoked. Every build of a composite must use one set of directories, because `wpi2.sh` looks
     // in only one place, so use the root directory of the outermost build.
-    var gradle = project.gradle
-    while (true) {
-      gradle = gradle.parent ?: break
-    }
+    val gradle = generateSequence(project.gradle) { it.parent }.last()
     // `Gradle.getRootProject()` throws if the outermost build's root project does not exist yet, as
     // when this plugin is applied while `buildSrc` is being configured. Then fall back to this
     // build's root directory.
@@ -840,9 +845,9 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
      * @param options the compile options whose argument providers to replace
      */
     private fun filterArgumentProviders(options: CompileOptions) {
-      val argumentProviders = ArrayList(options.compilerArgumentProviders)
+      val filteredProviders = options.compilerArgumentProviders.map { Wpi2ArgumentFilter(it) }
       options.compilerArgumentProviders.clear()
-      argumentProviders.forEach { options.compilerArgumentProviders.add(Wpi2ArgumentFilter(it)) }
+      options.compilerArgumentProviders.addAll(filteredProviders)
     }
 
     /**
@@ -893,19 +898,20 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
   /**
    * Returns the extra javac arguments if the Checker Framework is enabled, and no arguments
    * otherwise. If this build performs whole-program inference, then the arguments that it requires
-   * are added and the arguments that it forbids are removed.
+   * are added. The arguments that it forbids are removed by [Wpi2ArgumentFilter], which filters
+   * this provider's arguments along with every other provider's.
    *
-   * @param wpi2RootDir the directory that holds the whole-program inference directories, or no
-   *   value if this build is not performing whole-program inference
+   * @param wpi2RootDir the directory that holds the whole-program inference directories, or null if
+   *   this build is not performing whole-program inference
    */
-  internal class ExtraJavacArgsIfEnabled(private val wpi2RootDir: Provider<File>) :
+  internal class ExtraJavacArgsIfEnabled(private val wpi2RootDir: File?) :
     BiFunction<List<String>, Boolean, List<String>> {
     override fun apply(extraJavacArgs: List<String>, enabled: Boolean): List<String> {
       if (!enabled) {
         return emptyList()
       }
-      val rootDir = wpi2RootDir.orNull ?: return extraJavacArgs
-      return extraJavacArgs.filterNot(Wpi2::isForbiddenArgument) + Wpi2.arguments(rootDir)
+      return if (wpi2RootDir == null) extraJavacArgs
+      else extraJavacArgs + Wpi2.arguments(wpi2RootDir)
     }
   }
 
