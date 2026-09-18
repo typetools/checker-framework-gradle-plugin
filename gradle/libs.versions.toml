@@ -5,8 +5,8 @@ ktlint = "1.8.0"
 [libraries]
 truth = "com.google.truth:truth:1.4.5"
 
-# Versions used in build script, libraries added here for Dependabot
-junitJupiter-api = { module = "org.junit.jupiter:junit-jupiter-api", version.ref="junitJupiter" }
+# Versions used in the build script; the libraries are listed here so that Dependabot updates them.
+junitJupiter-api = { module = "org.junit.jupiter:junit-jupiter-api", version.ref = "junitJupiter" }
 ktlint = { module = "com.pinterest.ktlint:ktlint-cli", version.ref = "ktlint" }
 
 [plugins]

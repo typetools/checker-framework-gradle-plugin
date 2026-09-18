@@ -19,7 +19,7 @@ class CfPluginFunctionalTest : KotlinPluginFunctionalTest() {
       }
       repositories {
           mavenCentral()
-      }         
+      }
 
       """
         .trimIndent()
@@ -435,9 +435,9 @@ class CfPluginFunctionalTest : KotlinPluginFunctionalTest() {
 
   @Test
   fun `test checkerFramework configuration`() {
-    // This tests that the version of the Checker Framework in the checker framework configuration
-    // is used instead of the version in 'version'.  Both versions are pinned rather than tracking
-    // TEST_CF_VERSION: 'version' supplies checker-qual, and a checker-qual older than checker.jar
+    // This tests that the version of the Checker Framework in the `checkerFramework` configuration
+    // is used instead of the version in `version`.  Both versions are pinned rather than tracking
+    // TEST_CF_VERSION: `version` supplies checker-qual, and a checker-qual older than checker.jar
     // may lack qualifiers that checker.jar refers to, which fails for a reason unrelated to which
     // version this test expects to win.
     val configurationVersion = "3.53.0"

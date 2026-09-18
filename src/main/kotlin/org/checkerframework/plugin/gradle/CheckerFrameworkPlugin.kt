@@ -68,14 +68,14 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
     val cfConfiguration =
       project.configurations.register(CONFIGURATION_NAME) {
         description =
-          "Checker Framework dependencies, will be extended by all source sets' annotationProcessor configurations"
+          "Checker Framework dependencies, which are added to every source set's annotationProcessor configuration"
         addDefaultCFDependencies(cfVersion, project, "checker")
       }
 
     val checkerQualConfiguration =
       project.configurations.register("checkerQual") {
         description =
-          "Pluggable type-checker qualifier dependencies, will be extended by all source sets' implementation configuration"
+          "Pluggable type-checker qualifier dependencies, which are added to every source set's implementation configuration"
         addDefaultCFDependencies(cfVersion, project, "checker-qual")
       }
 
@@ -214,9 +214,8 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
   }
 
   /**
-   * Adds the dependencies of {@code cfConfiguration} to {@code targetConfiguration}. Adds nothing
-   * if {@code targetConfiguration} belongs to a test source set and the user set `excludeTests` to
-   * true.
+   * Adds the dependencies of `cfConfiguration` to `targetConfiguration`. Adds nothing if
+   * `targetConfiguration` belongs to a test source set and the user set `excludeTests` to true.
    *
    * The dependencies are copied rather than inherited via [Configuration.extendsFrom], because the
    * values that determine what to add are not necessarily known when extendsFrom would have to be
@@ -234,9 +233,9 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
    * @param cfConfiguration the configuration whose dependencies to copy
    * @param cfExtension the configuration that says whether to exclude tests
    * @param cfVersion the Checker Framework version, "local", or "dependencies"
-   * @param project current project
-   * @param jarName name of the jar to depend on if {@code cfConfiguration} declares no dependencies
-   * @param isTest true if {@code targetConfiguration} belongs to a test source set
+   * @param project the current project
+   * @param jarName the name of the jar to depend on if `cfConfiguration` declares no dependencies
+   * @param isTest true if `targetConfiguration` belongs to a test source set
    */
   private fun addCFDependencies(
     targetConfiguration: Configuration,
@@ -293,7 +292,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
   /**
    * Configures every [JavaCompile] task on which the Checker Framework should be run.
    *
-   * @param project current project
+   * @param project the current project
    * @param cfExtension the plugin's configuration options
    * @param cfManifestFiles the Checker Framework manifest directory
    * @param cfEnabled for each task, the property that says whether to run the Checker Framework on
@@ -345,7 +344,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
           )
 
       // Add argument providers so that a user cannot accidentally overwrite the Checker
-      // Framework options, i.e. options.compilerArgs = [...].
+      // Framework options, i.e., options.compilerArgs = [...].
       // The provider's input is the arguments that this task will actually use, rather than
       // `extraJavacArgs` itself, so that changing `extraJavacArgs` does not make a task on which
       // the Checker Framework is disabled out of date.
@@ -432,7 +431,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
    * task, but changes the source to the result of the delombok task.
    *
    * @param sourceSet the source set to add the task for
-   * @param project current project
+   * @param project the current project
    * @param cfEnabled for each task, the property that says whether to run the Checker Framework on
    *   it
    */
@@ -461,8 +460,8 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
       checkerTask.group = "Checker Framework"
       checkerTask.description =
         "Runs the Checker Framework on the result of delomboking the source code"
-      // The lombok plugin's default formatting is pretty-printing, without the @Generated
-      // annotations that we need to recognize lombok'd code.
+      // The Lombok plugin's default formatting is pretty-printing, without the @Generated
+      // annotations that we need in order to recognize Lombok-generated code.
       delombokTask.extensions.add("generated", "generate")
 
       // Set the sources to the delomboked code.
@@ -492,8 +491,8 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
   }
 
   /**
-   * Runs {@code action} after {@code project} has been evaluated, or immediately if it is too late
-   * to register such an action, because {@code project} has already been evaluated.
+   * Runs `action` after `project` has been evaluated, or immediately if it is too late to register
+   * such an action because `project` has already been evaluated.
    *
    * Registration is attempted rather than predicted from [org.gradle.api.ProjectState.getExecuted],
    * which becomes true while the project's `afterEvaluate` actions are running, at which time
@@ -594,12 +593,12 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
   }
 
   /**
-   * Add the default dependencies for the given {@code jarName}.
+   * Adds the default dependencies for the given `jarName`.
    *
    * @param cfVersion a provider of the Checker Framework version, "local", or "dependencies"; the
    *   provider may have no value
-   * @param project current project
-   * @param jarName name of the jar which is added as a dependency
+   * @param project the current project
+   * @param jarName the name of the jar that is added as a dependency
    */
   private fun Configuration.addDefaultCFDependencies(
     cfVersion: Provider<String>,
@@ -616,14 +615,14 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
   }
 
   /**
-   * Returns the default dependency on {@code jarName}, or null if the user asked that no dependency
-   * be added. Throws an exception if {@code cfVersion} has no value.
+   * Returns the default dependency on `jarName`, or null if the user asked that no dependency be
+   * added. Throws an exception if `cfVersion` has no value.
    *
    * @param cfVersion a provider of the Checker Framework version, "local", or "dependencies"; the
    *   provider may have no value
    * @param dependencies creates the dependency
    * @param objects creates a file collection for a local jar
-   * @param jarName name of the jar to depend on
+   * @param jarName the name of the jar to depend on
    */
   private fun defaultCFDependency(
     cfVersion: Provider<String>,
@@ -656,7 +655,7 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
     }
   }
 
-  /** Return true if the Name is a test name. */
+  /** Returns true if the given task name is a test name. */
   private fun isTestName(taskName: String): Boolean {
     return taskName.matches(Regex(".*(T|(^|[A-Z_])t)est.*"))
   }
@@ -806,9 +805,10 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
       }
       requireManifest(task)
 
-      // Must fork for the JVM arguments to be applied. Configuration time requests forking if the
-      // Checker Framework was enabled then, but this ensures that no other configuration has undone
-      // it and that a compilation that the user enabled later forks as well.
+      // Must fork for the JVM arguments to be applied. The plugin requests forking at
+      // configuration time if the Checker Framework was enabled then, but this ensures that no
+      // other configuration has undone it and that a compilation that the user enabled later forks
+      // as well.
       options.isFork = true
 
       // The path already contains the manifest directory unless some other configuration replaced
@@ -821,9 +821,9 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
       val processorArgIndex = compilerArgs.indexOf("-processor")
       if (processorArgIndex != -1) {
         if (processorArgIndex + 1 < compilerArgs.size) {
-          // Because the user already passed -processor as a compiler arg, auto discovery will
+          // Because the user already passed -processor as a compiler arg, auto-discovery will
           // not work, so add the checkers to the list of processors.
-          // This can't be done in CheckerFrameworkCompilerArgumentProvider because it modifies
+          // This cannot be done in CheckerFrameworkCompilerArgumentProvider, because it modifies
           // existing arguments rather than adding a new one.
           val oldProcessors = compilerArgs[processorArgIndex + 1]
           val cfProcessors = checkerNames.joinToString(separator = ",")

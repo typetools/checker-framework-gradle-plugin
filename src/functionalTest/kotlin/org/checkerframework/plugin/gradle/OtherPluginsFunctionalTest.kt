@@ -12,7 +12,7 @@ class OtherPluginsFunctionalTest : KotlinPluginFunctionalTest() {
       """
       repositories {
           mavenCentral()
-      }         
+      }
       """
         .trimIndent()
     )
@@ -20,18 +20,18 @@ class OtherPluginsFunctionalTest : KotlinPluginFunctionalTest() {
 
   @Test
   fun `test lombok 8 12 1`() {
-    // Lombok 8.12.1 does not support Java 25 and later.
+    // Version 8.12.1 of the Lombok plugin does not support Java 25 and later.
     if (testJavaVersion >= 25) {
       return
     }
     buildFile.appendText(
       """
-       plugins {
+      plugins {
           `java-library`
           id("org.checkerframework")
           id("io.freefair.lombok").version("8.12.1")
       }
-      
+
       configure<CheckerFrameworkExtension> {
         version = "$TEST_CF_VERSION"
         checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
@@ -59,12 +59,12 @@ class OtherPluginsFunctionalTest : KotlinPluginFunctionalTest() {
   fun `test lombok latest`() {
     buildFile.appendText(
       """
-       plugins {
+      plugins {
           `java-library`
           id("org.checkerframework")
           id("io.freefair.lombok").version("9.5.0")
       }
-      
+
       configure<CheckerFrameworkExtension> {
         version = "$TEST_CF_VERSION"
         checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
@@ -92,7 +92,7 @@ class OtherPluginsFunctionalTest : KotlinPluginFunctionalTest() {
   fun `test forking is visible at configuration time with lombok`() {
     buildFile.appendText(
       """
-       plugins {
+      plugins {
           `java-library`
           id("org.checkerframework")
           id("io.freefair.lombok").version("9.5.0")
@@ -121,15 +121,15 @@ class OtherPluginsFunctionalTest : KotlinPluginFunctionalTest() {
   }
 
   @Test
-  fun `test disabling CF with lombok `() {
+  fun `test disabling CF with lombok`() {
     buildFile.appendText(
       """
-       plugins {
+      plugins {
           `java-library`
           id("org.checkerframework")
           id("io.freefair.lombok").version("9.5.0")
       }
-      
+
       configure<CheckerFrameworkExtension> {
         version = "$TEST_CF_VERSION"
         checkers = listOf("org.checkerframework.checker.nullness.NullnessChecker")
@@ -158,7 +158,7 @@ class OtherPluginsFunctionalTest : KotlinPluginFunctionalTest() {
   fun `test disabling CF for compileJava only, with lombok`() {
     buildFile.appendText(
       """
-       plugins {
+      plugins {
           `java-library`
           id("org.checkerframework")
           id("io.freefair.lombok").version("9.5.0")
@@ -202,7 +202,7 @@ class OtherPluginsFunctionalTest : KotlinPluginFunctionalTest() {
   fun `test disabling CF for the delombok task only`() {
     buildFile.appendText(
       """
-       plugins {
+      plugins {
           `java-library`
           id("org.checkerframework")
           id("io.freefair.lombok").version("9.5.0")

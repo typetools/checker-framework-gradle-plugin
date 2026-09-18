@@ -17,7 +17,7 @@ class CFGroovyPluginFunctionalTest : GroovyPluginFunctionalTest() {
       }
       repositories {
           mavenCentral()
-      }         
+      }
 
       """
         .trimIndent()
