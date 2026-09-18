@@ -302,6 +302,10 @@ every subproject.  Setting it via `ext` in the subproject's own `build.gradle`
 file, or in a `gradle.properties` file in the subproject's own directory, works
 for that subproject only.
 
+A value given on the command line, as `-PcfVersion=...` or
+`-PskipCheckerFramework=...`, takes precedence over every other way of setting
+the property, including an assignment to `ext` in a build script.
+
 Do not set either property in a way that only an ancestor project sees: via
 `ext` in the ancestor's `build.gradle` file, or in a `gradle.properties` file in
 the directory of an ancestor other than the root project.  A subproject does not

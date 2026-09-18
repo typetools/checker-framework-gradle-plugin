@@ -485,15 +485,16 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
 
   /**
    * Returns the value of the given project property, or null if the property is not set. Throws an
-   * exception if the property is set to a null value.
+   * exception if the property is set to a null value. A value that the command line supplies, via
+   * `-P`, takes precedence over every other way of setting the property.
    *
-   * [ExtraPropertiesExtension] is used rather than [Project.findProperty], which reads the same
-   * property but also, when the property is not set on this project, falls back to a parent
-   * project. That fallback is cross-project model access, which the isolated projects feature
-   * forbids: "Project ':a' cannot dynamically look up a property in the parent project ':'". The
-   * fallback happens on every lookup of a property that is not set, so findProperty makes the
-   * plugin incompatible with isolated projects in every multi-project build, even one that sets
-   * none of the plugin's project properties.
+   * [ExtraPropertiesExtension] is used, for a property that the command line does not set, rather
+   * than [Project.findProperty], which reads the same property but also, when the property is not
+   * set on this project, falls back to a parent project. That fallback is cross-project model
+   * access, which the isolated projects feature forbids: "Project ':a' cannot dynamically look up a
+   * property in the parent project ':'". The fallback happens on every lookup of a property that is
+   * not set, so findProperty makes the plugin incompatible with isolated projects in every
+   * multi-project build, even one that sets none of the plugin's project properties.
    *
    * [org.gradle.api.provider.ProviderFactory.gradleProperty] is also isolated-projects-compatible,
    * but it reads a different set of properties, for three reasons:
@@ -511,7 +512,10 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
    * populates it with the project properties that come from the command line, from a
    * gradle.properties file in the root project's directory, in this project's directory, or in
    * $GRADLE_USER_HOME, from a -Dorg.gradle.project.* system property, from an ORG_GRADLE_PROJECT_*
-   * environment variable, and from this project's `ext`.
+   * environment variable, and from this project's `ext`. Its one shortcoming is that all those
+   * sources share one storage, so a build script's assignment to `ext` replaces a command-line
+   * value; the start parameter, which no build script can change, is consulted first for that
+   * reason.
    *
    * What findProperty reads and this does not is a property that only an ancestor project sees: one
    * that the ancestor's build script sets via `ext`, or one in a gradle.properties file in the
@@ -526,6 +530,13 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
    * @param propertyName the name of the property to read
    */
   private fun projectProperty(project: Project, propertyName: String): String? {
+    // A property that the command line sets takes precedence over the extra properties, because a
+    // build script can assign to `ext` a property of the same name, which overwrites the
+    // command-line value in the extra properties. The start parameter is the only record of what
+    // the command line requested, and a build script cannot change it.
+    project.gradle.startParameter.projectProperties[propertyName]?.let {
+      return it
+    }
     val extraProperties = project.extensions.extraProperties
     if (!extraProperties.has(propertyName)) {
       return null
