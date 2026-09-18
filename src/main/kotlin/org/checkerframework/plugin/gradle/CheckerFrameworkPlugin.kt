@@ -17,6 +17,7 @@ import org.gradle.api.file.Directory
 import org.gradle.api.file.FileCollection
 import org.gradle.api.model.ObjectFactory
 import org.gradle.api.plugins.ExtensionAware
+import org.gradle.api.plugins.ExtraPropertiesExtension
 import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.plugins.JavaPluginExtension
 import org.gradle.api.provider.ListProperty
@@ -515,10 +516,19 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
 
   /**
    * Returns the value of the given project property, or null if the property is not set. Throws an
-   * exception if the property is set to a null value.
+   * exception if the property is set to a null value. A value that the command line supplies, via
+   * `-P`, takes precedence over every other way of setting the property.
    *
-   * [Project.findProperty] is used rather than
-   * [org.gradle.api.provider.ProviderFactory.gradleProperty] for three reasons:
+   * [ExtraPropertiesExtension] is used, for a property that the command line does not set, rather
+   * than [Project.findProperty], which reads the same property but also, when the property is not
+   * set on this project, falls back to a parent project. That fallback is cross-project model
+   * access, which the isolated projects feature forbids: "Project ':a' cannot dynamically look up a
+   * property in the parent project ':'". The fallback happens on every lookup of a property that is
+   * not set, so findProperty makes the plugin incompatible with isolated projects in every
+   * multi-project build, even one that sets none of the plugin's project properties.
+   *
+   * [org.gradle.api.provider.ProviderFactory.gradleProperty] is also isolated-projects-compatible,
+   * but it reads a different set of properties, for three reasons:
    * * gradleProperty does not see extra properties, such as those that a build script sets via
    *   `ext`.
    * * gradleProperty does not see a gradle.properties file in a subproject directory:
@@ -529,19 +539,41 @@ class CheckerFrameworkPlugin @Inject constructor() : Plugin<Project> {
    *   'forUseAtConfigurationTime()' instead." That method was deprecated in Gradle 7.4 and removed
    *   in Gradle 8.0, so this plugin cannot call it.
    *
-   * The workaround in https://github.com/gradle/gradle/issues/23572#issuecomment-2563603855 makes
-   * gradleProperty usable despite the second problem, but it reimplements property lookup and does
-   * not address the other two problems, so findProperty remains simpler and more correct here.
+   * ExtraPropertiesExtension has none of those three problems: it is not a provider, and Gradle
+   * populates it with the project properties that come from the command line, from a
+   * gradle.properties file in the root project's directory, in this project's directory, or in
+   * $GRADLE_USER_HOME, from a -Dorg.gradle.project.* system property, from an ORG_GRADLE_PROJECT_*
+   * environment variable, and from this project's `ext`. Its one shortcoming is that all those
+   * sources share one storage, so a build script's assignment to `ext` replaces a command-line
+   * value; the start parameter, which no build script can change, is consulted first for that
+   * reason.
+   *
+   * What findProperty reads and this does not is a property that only an ancestor project sees: one
+   * that the ancestor's build script sets via `ext`, or one in a gradle.properties file in the
+   * directory of an ancestor other than the root project. (The root project's gradle.properties
+   * file is merged into every project's extra properties, but a non-root project's is not merged
+   * into its subprojects'.) A subproject no longer inherits either kind of setting, because reading
+   * it is exactly the cross-project access that isolated projects forbids, so a build that sets a
+   * plugin property that way must set it in the root project's gradle.properties file or on the
+   * command line instead.
    *
    * @param project the project whose property to read
    * @param propertyName the name of the property to read
    */
   private fun projectProperty(project: Project, propertyName: String): String? {
-    if (!project.hasProperty(propertyName)) {
+    // A property that the command line sets takes precedence over the extra properties, because a
+    // build script can assign to `ext` a property of the same name, which overwrites the
+    // command-line value in the extra properties. The start parameter is the only record of what
+    // the command line requested, and a build script cannot change it.
+    project.gradle.startParameter.projectProperties[propertyName]?.let {
+      return it
+    }
+    val extraProperties = project.extensions.extraProperties
+    if (!extraProperties.has(propertyName)) {
       return null
     }
     val value =
-      project.findProperty(propertyName)
+      extraProperties.get(propertyName)
         ?: throw IllegalStateException("$propertyName property is set but has a null value")
     return value.toString()
   }

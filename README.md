@@ -22,7 +22,11 @@ above.  Although you must compile your project using at least Java 17, the
 compiled classfiles can be compatible with, and can run on, any version of Java.
 
 The plugin is compatible with Gradle's [configuration
-cache](https://docs.gradle.org/current/userguide/configuration_cache.html).
+cache](https://docs.gradle.org/current/userguide/configuration_cache.html) and
+with [isolated
+projects](https://docs.gradle.org/current/userguide/isolated_projects.html).  If
+you enable isolated projects, see [Multi-project
+builds](#multi-project-builds) for a requirement that it places on your build.
 
 ## Configuration
 
@@ -59,7 +63,9 @@ The special value **"local"** means to use a locally-built version of the
 Checker Framework, found at environment variable `$CHECKERFRAMEWORK`.
 
 The command-line argument **`-PcfVersion=...`** (where "..." is a version number
-or "local") overrides settings in gradle buildfiles.
+or "local") overrides settings in gradle buildfiles.  You can also set the
+`cfVersion` project property in a `gradle.properties` file or via `ext`; in a
+multi-project build, see [Project properties](#project-properties).
 
 #### Checker Framework jar files
 
@@ -169,7 +175,9 @@ checkerFramework {
 
 From the command line, add `-PskipCheckerFramework` to your gradle invocation. You can also pass 
 `-PskipCheckerFramework=false` to enable the Checker Framework even if the configuration has 
-`skipCheckerFramework = true`.
+`skipCheckerFramework = true`.  You can also set the `skipCheckerFramework`
+project property in a `gradle.properties` file or via `ext`; in a multi-project
+build, see [Project properties](#project-properties).
 
 ### Disabling the Checker Framework for tests
 
@@ -208,21 +216,80 @@ The only configuration available on a per-task basis is `enabled`.
 
 In a project with subprojects, you should apply the plugin to each Java
 subproject (and to the top-level project, in the unlikely case that it is a Java
-project).  Here are two approaches.
+project).  Each subproject should configure the plugin itself, either directly
+or through a convention plugin.
 
-### Approach 1
+### Per-subproject configuration
 
-All Checker Framework configuration (the `checkerFramework` block and any
-`dependencies`) remains in the top-level `build.gradle` file.  Put it in a
-`subprojects` block (or an `allprojects` block in the unlikely case that the
-top-level project is a Java project).  For example, in Groovy syntax:
+Apply the plugin in the `build.gradle` file of each subproject, as if the
+subproject were a stand-alone project.  Use this if the subprojects need
+different configuration, such as different checkers.
+
+### A convention plugin
+
+If the subprojects share configuration, put it in a convention plugin rather
+than repeating it in each subproject.
+
+Write `buildSrc/build.gradle`:
 
 ```groovy
 plugins {
-  id("org.checkerframework").version("1.0.2")
+  id("groovy-gradle-plugin")
 }
 
-subprojects { subproject ->
+repositories {
+  gradlePluginPortal()
+}
+
+dependencies {
+  implementation("org.checkerframework:org.checkerframework.gradle.plugin:1.0.2")
+}
+```
+
+Write `buildSrc/src/main/groovy/my-checkerframework-conventions.gradle`:
+
+```groovy
+plugins {
+  id("org.checkerframework")
+}
+
+repositories {
+  mavenCentral()
+}
+
+checkerFramework {
+  checkers = ["org.checkerframework.checker.index.IndexChecker"]
+  version = "3.53.1"
+}
+```
+
+Then each subproject's `build.gradle` file contains:
+
+```groovy
+plugins {
+  id("java-library")
+  id("my-checkerframework-conventions")
+}
+```
+
+A subproject can override the conventions in its own `checkerFramework` block.
+Every project configures only itself, so a convention plugin works with the
+configuration cache and with [isolated projects](#isolated-projects).
+
+### Cross-project configuration
+
+It is possible, but discouraged, to configure all the subprojects from the
+top-level `build.gradle` file, in a `subprojects` block (or an `allprojects`
+block in the unlikely case that the top-level project is a Java project):
+
+```groovy
+// Don't do this.
+
+plugins {
+  id("org.checkerframework").version("1.0.2") apply false
+}
+
+subprojects {
   apply plugin: "org.checkerframework"
 
   checkerFramework {
@@ -232,11 +299,40 @@ subprojects { subproject ->
 }
 ```
 
-### Approach 2
+A [convention plugin](#a-convention-plugin) is a better way to share
+configuration than this discouraged pattern.
 
-Apply the plugin in the `build.gradle` in each subproject as if it
-were a stand-alone project. You must do this if you require different configuration
-for different subprojects (for instance, if you want to run different checkers).
+### Project properties
+
+Set the `cfVersion` or `skipCheckerFramework` project property in the *root*
+project's `gradle.properties` file or on the command line; either one works in
+every subproject.  Setting it via `ext` in the subproject's own `build.gradle`
+file, or in a `gradle.properties` file in the subproject's own directory, works
+for that subproject only.
+
+A value given on the command line, as `-PcfVersion=...` or
+`-PskipCheckerFramework=...`, takes precedence over every other way of setting
+the property, including an assignment to `ext` in a build script.
+
+Do not set either property in a way that only an ancestor project sees: via
+`ext` in the ancestor's `build.gradle` file, or in a `gradle.properties` file in
+the directory of an ancestor other than the root project.  A subproject does not
+inherit such a setting.  (Plugin version 1.0.2 and earlier did inherit such a
+setting.  If your build relies on that, move the setting to the root project's
+`gradle.properties` file; otherwise, the subprojects silently fall back to the
+`checkerFramework` block's settings.)
+
+### Isolated projects
+
+Gradle's [isolated
+projects](https://docs.gradle.org/current/userguide/isolated_projects.html)
+feature forbids a project from reading or configuring another project.  The
+plugin is compatible with it, but the feature places one requirement on your
+build: do not use [cross-project
+configuration](#cross-project-configuration).  Gradle forbids it, reporting
+"Project ':' cannot access 'Project.apply' functionality on subprojects".
+Configure each subproject in its own `build.gradle` file, directly or through a
+[convention plugin](#a-convention-plugin).
 
 ## Modules
 
@@ -387,6 +483,7 @@ LocalWords:  kotlin CheckerFrameworkExtension listOf extraJavacArgs Multi eisop
 LocalWords:  Werror Astubs testCompileJava excludeTests camelCase classfiles
 LocalWords:  withType configureEach compileMainGeneratedDataTemplateJava
 LocalWords:  compileMainGeneratedRestJava subprojects allprojects mavenLocal
+LocalWords:  buildSrc
 LocalWords:  delombok addLombokGeneratedAnnotation addSuppressWarnings cfLocal
 LocalWords:  publishToMavenLocal pluginManagement gradlePluginPortal
 LocalWords:  compileOnly testCompileOnly checkerFrameworkVersion PcfLocal
