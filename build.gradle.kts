@@ -1,4 +1,7 @@
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
+import org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile
 
 plugins {
   `kotlin-dsl`
@@ -37,7 +40,19 @@ gradlePlugin {
   }
 }
 
-kotlin { jvmToolchain(17) }
+kotlin {
+  jvmToolchain(17)
+  coreLibrariesVersion = "2.0.0"
+}
+
+tasks.withType<KotlinJvmCompile>().configureEach {
+  compilerOptions {
+    jvmTarget = JvmTarget.JVM_17
+    freeCompilerArgs.add("-Xjdk-release=17")
+    apiVersion = KotlinVersion.KOTLIN_2_0
+    languageVersion = KotlinVersion.KOTLIN_2_0
+  }
+}
 
 testing {
   suites {
