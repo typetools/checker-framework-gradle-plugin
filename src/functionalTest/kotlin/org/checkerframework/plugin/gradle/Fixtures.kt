@@ -238,6 +238,29 @@ fun File.writeErrorProneExample() {
   }
 }
 
+/**
+ * Writes a class for which the Nullness Checker infers an annotation: `@Nullable` for the field.
+ */
+fun File.writeInferenceExample() {
+  File(this.resolve("src/main/java/test").apply { mkdirs() }, "Inference.java").apply {
+    createNewFile()
+    writeText(
+      """
+      package test;
+
+      public class Inference {
+        Object field = new Object();
+
+        void clear() {
+          field = null;
+        }
+      }
+      """
+        .trimIndent()
+    )
+  }
+}
+
 const val CONFIGURATION_CACHE_STORED = "Configuration cache entry stored."
 const val CONFIGURATION_CACHE_REUSED = "Configuration cache entry reused."
 
