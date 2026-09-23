@@ -297,8 +297,7 @@ the directory of an ancestor other than the root project.  A subproject does not
 inherit such a setting.  (Plugin version 1.0.2 and earlier did inherit such a
 setting.  If your build relies on that, move the setting to the root project's
 `gradle.properties` file.  Otherwise, a subproject uses the `checkerFramework`
-block's settings; if that block sets no `version`, the build fails with
-"Checker Framework version must be set.")
+block's settings.)
 
 ## Modules
 
