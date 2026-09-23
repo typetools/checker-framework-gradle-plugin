@@ -24,9 +24,7 @@ compiled classfiles can be compatible with, and can run on, any version of Java.
 The plugin is compatible with Gradle's [configuration
 cache](https://docs.gradle.org/current/userguide/configuration_cache.html) and
 with [isolated
-projects](https://docs.gradle.org/current/userguide/isolated_projects.html).  If
-you enable isolated projects, see [Multi-project
-builds](#multi-project-builds) for a requirement that it places on your build.
+projects](https://docs.gradle.org/current/userguide/isolated_projects.html).
 
 ## Configuration
 
@@ -217,7 +215,8 @@ The only configuration available on a per-task basis is `enabled`.
 In a project with subprojects, you should apply the plugin to each Java
 subproject (and to the top-level project, in the unlikely case that it is a Java
 project).  Each subproject should configure the plugin itself, either directly
-or through a convention plugin.
+or through a convention plugin.  Do not configure the subprojects from the
+top-level `build.gradle` file, in a `subprojects` or `allprojects` block.
 
 ### Per-subproject configuration
 
@@ -257,9 +256,10 @@ repositories {
   mavenCentral()
 }
 
+// Change these to the checkers and Checker Framework version that you want.
 checkerFramework {
   checkers = ["org.checkerframework.checker.index.IndexChecker"]
-  version = "3.53.1"
+  version = "4.2.3"
 }
 ```
 
@@ -274,33 +274,8 @@ plugins {
 
 A subproject can override the conventions in its own `checkerFramework` block.
 Every project configures only itself, so a convention plugin works with the
-configuration cache and with [isolated projects](#isolated-projects).
-
-### Cross-project configuration
-
-It is possible, but discouraged, to configure all the subprojects from the
-top-level `build.gradle` file, in a `subprojects` block (or an `allprojects`
-block in the unlikely case that the top-level project is a Java project):
-
-```groovy
-// Don't do this.
-
-plugins {
-  id("org.checkerframework").version("1.0.2") apply false
-}
-
-subprojects {
-  apply plugin: "org.checkerframework"
-
-  checkerFramework {
-    checkers = ["org.checkerframework.checker.index.IndexChecker"]
-    version = "4.2.3"
-  }
-}
-```
-
-A [convention plugin](#a-convention-plugin) is a better way to share
-configuration than this discouraged pattern.
+configuration cache and with [isolated
+projects](https://docs.gradle.org/current/userguide/isolated_projects.html).
 
 ### Project properties
 
@@ -321,18 +296,6 @@ inherit such a setting.  (Plugin version 1.0.2 and earlier did inherit such a
 setting.  If your build relies on that, move the setting to the root project's
 `gradle.properties` file; otherwise, the subprojects silently fall back to the
 `checkerFramework` block's settings.)
-
-### Isolated projects
-
-Gradle's [isolated
-projects](https://docs.gradle.org/current/userguide/isolated_projects.html)
-feature forbids a project from reading or configuring another project.  The
-plugin is compatible with it, but the feature places one requirement on your
-build: do not use [cross-project
-configuration](#cross-project-configuration).  Gradle forbids it, reporting
-"Project ':' cannot access 'Project.apply' functionality on subprojects".
-Configure each subproject in its own `build.gradle` file, directly or through a
-[convention plugin](#a-convention-plugin).
 
 ## Modules
 

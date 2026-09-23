@@ -265,6 +265,10 @@ class IsolatedProjectsFunctionalTest {
      * A regex matching the message that Gradle issues when the isolated projects feature is
      * enabled. Gradle 9.2.1 and earlier write the feature's name as "Isolated projects", and a
      * later version capitalizes it as "Isolated Projects".
+     *
+     * When the feature stops being incubating, Gradle will presumably change or drop this message.
+     * Then every test that calls [assertIsolatedProjects] fails, and this regex must be updated to
+     * match whatever Gradle issues instead.
      */
     private const val ISOLATED_PROJECTS_ENABLED =
       """Isolated [Pp]rojects is an incubating feature\."""
