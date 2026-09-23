@@ -193,7 +193,7 @@ fun File.writeLombokExample() {
   }
 }
 
-/** Writes a class that uses lombok and that the Nullness Checker issues no warning about. */
+/** Writes a class that uses Lombok and that the Nullness Checker issues no warning about. */
 fun File.writeCorrectLombokExample() {
   File(this.resolve("src/main/java/lib").apply { mkdirs() }, "Correct.java").apply {
     createNewFile()

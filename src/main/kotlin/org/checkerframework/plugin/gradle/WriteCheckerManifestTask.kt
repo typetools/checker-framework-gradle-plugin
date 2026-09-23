@@ -13,8 +13,8 @@ import org.gradle.api.tasks.TaskAction
 import org.gradle.work.DisableCachingByDefault
 
 /**
- * Create META-INF/services/javax.annotation.processing.Processor and
- * META-INF/gradle/incremental.annotation.processors files so that processor autodiscovery works.
+ * Creates the META-INF/services/javax.annotation.processing.Processor and
+ * META-INF/gradle/incremental.annotation.processors files so that processor auto-discovery works.
  */
 @DisableCachingByDefault(
   because = "Writing two small files from the task inputs is cheaper than build cache round-trips"
@@ -90,8 +90,7 @@ abstract class WriteCheckerManifestTask : DefaultTask() {
     if (!parentDir.isDirectory && !parentDir.mkdirs()) {
       throw IOException("Could not create directory $parentDir")
     }
-    // Overwrites the contents of fileName if it exists or creates a new file if fileName does not
-    // exist.
+    // Overwrites the file if it already exists, and creates it otherwise.
     processorFile.writeText(checkers.joinToString(separator = separator, postfix = separator))
   }
 }

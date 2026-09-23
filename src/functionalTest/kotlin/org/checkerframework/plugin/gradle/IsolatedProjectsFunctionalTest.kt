@@ -119,6 +119,24 @@ class IsolatedProjectsFunctionalTest {
   private fun File.buildIsolated(vararg tasks: String): BuildResult =
     prepareBuildWithoutPluginClasspath(*tasks).build()
 
+  /**
+   * Compiles one subproject of [testProjectDir] and asserts that the compilation succeeded, used
+   * the given Checker Framework version and no other, and did not violate the isolated projects
+   * feature.
+   *
+   * @param subproject the subproject's name
+   * @param expectedVersion the Checker Framework version that the subproject should use
+   */
+  private fun assertSubprojectUsesVersion(subproject: String, expectedVersion: String) {
+    val result = testProjectDir.buildIsolated(":$subproject:compileJava", "--configuration-cache")
+    assertIsolatedProjects(result)
+    assertThat(result.task(":$subproject:compileJava")?.outcome).isEqualTo(TaskOutcome.SUCCESS)
+    assertThat(result.output).contains("Note: Checker Framework $expectedVersion")
+    val otherVersion =
+      if (expectedVersion == TEST_CF_VERSION) OTHER_TEST_CF_VERSION else TEST_CF_VERSION
+    assertThat(result.output).doesNotContain("Note: Checker Framework $otherVersion")
+  }
+
   @Test
   fun `test isolated projects in a multi-project build`() {
     // when
@@ -182,13 +200,9 @@ class IsolatedProjectsFunctionalTest {
       .resolve("a/gradle.properties")
       .writeText("cfVersion=$OTHER_TEST_CF_VERSION${"\n"}")
 
-    // when
-    val result = testProjectDir.buildIsolated("compileJava", "--configuration-cache")
-
-    // then only that subproject uses the overriding version
-    assertIsolatedProjects(result)
-    assertThat(result.output).contains("Note: Checker Framework $OTHER_TEST_CF_VERSION")
-    assertThat(result.output).contains("Note: Checker Framework $TEST_CF_VERSION")
+    // when each subproject is compiled, then only that subproject uses the overriding version
+    assertSubprojectUsesVersion("a", OTHER_TEST_CF_VERSION)
+    assertSubprojectUsesVersion("b", TEST_CF_VERSION)
   }
 
   @Test
@@ -199,13 +213,10 @@ class IsolatedProjectsFunctionalTest {
       .resolve("a/build.gradle.kts")
       .appendText("${"\n"}extra[\"cfVersion\"] = \"$OTHER_TEST_CF_VERSION\"${"\n"}")
 
-    // when
-    val result = testProjectDir.buildIsolated("compileJava", "--configuration-cache")
-
-    // then the extra property is read, without a cross-project lookup
-    assertIsolatedProjects(result)
-    assertThat(result.output).contains("Note: Checker Framework $OTHER_TEST_CF_VERSION")
-    assertThat(result.output).contains("Note: Checker Framework $TEST_CF_VERSION")
+    // when each subproject is compiled, then the extra property is read, without a cross-project
+    // lookup, and affects only that subproject
+    assertSubprojectUsesVersion("a", OTHER_TEST_CF_VERSION)
+    assertSubprojectUsesVersion("b", TEST_CF_VERSION)
   }
 
   @Test
