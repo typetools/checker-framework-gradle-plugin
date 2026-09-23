@@ -18,6 +18,26 @@ val testGradleVersion =
   System.getProperty("test.gradle-version")?.let(GradleVersion::version) ?: GradleVersion.current()
 
 /**
+ * The file-based Maven repository that this build publishes the plugin to, for tests that resolve
+ * the plugin the way a user would rather than through TestKit's injected plugin classpath.
+ */
+val testPluginRepo: String by lazy { requireTestProperty("test.plugin-repo") }
+
+/** The version of the plugin published to [testPluginRepo]. */
+val testPluginVersion: String by lazy { requireTestProperty("test.plugin-version") }
+
+/**
+ * Returns a system property that the `functionalTest` task sets, so that a test run that did not
+ * come from that task fails with an explanation rather than with a NullPointerException.
+ *
+ * @param name the system property's name
+ * @return the system property's value
+ */
+private fun requireTestProperty(name: String): String =
+  System.getProperty(name)
+    ?: error("System property \"$name\" is not set; run the functionalTest task, which sets it.")
+
+/**
  * The oldest Gradle version whose Kotlin DSL can use this plugin. This plugin is compiled by the
  * Kotlin compiler that the build's own Gradle embeds, and an older Gradle's Kotlin DSL cannot read
  * that compiler's metadata: it fails with "Protocol message contained an invalid tag (zero)" while
@@ -250,9 +270,19 @@ fun File.buildWithArgsAndFail(vararg tasks: String): BuildResult =
   prepareBuild(*tasks).buildAndFail()
 
 fun File.prepareBuild(vararg tasks: String): GradleRunner =
+  prepareBuildWithoutPluginClasspath(*tasks).withPluginClasspath()
+
+/**
+ * Prepares a build that does not use TestKit's injected plugin classpath, for a build that resolves
+ * the plugin from [testPluginRepo] instead.
+ *
+ * TestKit's injected plugin classpath is not safe to resolve from more than one project at a time,
+ * so a build whose projects are configured in parallel must not use it: it intermittently fails
+ * with "Error resolving plugin".
+ */
+fun File.prepareBuildWithoutPluginClasspath(vararg tasks: String): GradleRunner =
   GradleRunner.create()
     .withGradleVersion(testGradleVersion.version)
     .withProjectDir(this)
-    .withPluginClasspath()
     .withArguments(*tasks)
     .forwardOutput()
